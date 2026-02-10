@@ -1,54 +1,53 @@
 import { Then } from '@cucumber/cucumber'
 import { expect } from '@playwright/test'
 import { TestWorld } from '../../world/index.ts'
-import type { GraphNode } from '../../../domain/entities/index.ts'
+
+// Query Result Assertions
+Then<TestWorld>('the result should be empty', function () {
+  expect(this.graph.count).toBe(0)
+})
+
+Then<TestWorld>('the result should have {int} rows', function (expectedCount: number) {
+  expect(this.graph.count).toBe(expectedCount)
+})
+
+Then<TestWorld>('the result should have at least {int} rows', function (minCount: number) {
+  expect(this.graph.count).toBeGreaterThanOrEqual(minCount)
+})
 
 Then<TestWorld>(
-  'the node count should be {int}',
-  function (expectedCount: number) {
-    const nodes = this.getVariable<GraphNode[]>('_lastNodes')
-    expect(nodes).toHaveLength(expectedCount)
+  'the result path {string} should equal {string}',
+  function (path: string, expectedValue: string) {
+    const records = this.graph.records
+    expect(records.length).toBeGreaterThan(0)
+    const keys = path.split('.')
+    let value: unknown = records[0]
+    for (const key of keys) {
+      value = (value as Record<string, unknown>)[key]
+    }
+    expect(String(value)).toBe(this.interpolate(expectedValue))
   },
 )
 
 Then<TestWorld>(
-  'the node count should be greater than {int}',
-  function (minCount: number) {
-    const nodes = this.getVariable<GraphNode[]>('_lastNodes')
-    expect(nodes.length).toBeGreaterThan(minCount)
+  'the result path {string} should contain {string}',
+  function (path: string, expectedSubstring: string) {
+    const records = this.graph.records
+    expect(records.length).toBeGreaterThan(0)
+    const keys = path.split('.')
+    let value: unknown = records[0]
+    for (const key of keys) {
+      value = (value as Record<string, unknown>)[key]
+    }
+    expect(String(value)).toContain(this.interpolate(expectedSubstring))
   },
 )
 
-Then<TestWorld>(
-  'a node named {string} should exist',
-  function (name: string) {
-    const nodes = this.getVariable<GraphNode[]>('_lastNodes')
-    const found = nodes.find((n) => n.name === this.interpolate(name))
-    expect(found).toBeDefined()
-  },
-)
+// Variable Storage
+Then<TestWorld>('I store the result as {string}', function (variableName: string) {
+  this.setVariable(variableName, this.graph.records)
+})
 
-Then<TestWorld>(
-  'a node named {string} should not exist',
-  function (name: string) {
-    const nodes = this.getVariable<GraphNode[]>('_lastNodes')
-    const found = nodes.find((n) => n.name === this.interpolate(name))
-    expect(found).toBeUndefined()
-  },
-)
-
-Then<TestWorld>(
-  'the query result count should be {int}',
-  function (expectedCount: number) {
-    const results = this.getVariable<unknown[]>('_lastQueryResults')
-    expect(results).toHaveLength(expectedCount)
-  },
-)
-
-Then<TestWorld>(
-  'I store node count as {string}',
-  function (variableName: string) {
-    const nodes = this.getVariable<GraphNode[]>('_lastNodes')
-    this.setVariable(variableName, nodes.length)
-  },
-)
+Then<TestWorld>('I store the result count as {string}', function (variableName: string) {
+  this.setVariable(variableName, this.graph.count)
+})
