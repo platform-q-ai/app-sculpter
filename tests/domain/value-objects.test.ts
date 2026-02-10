@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'bun:test'
 import { RiskLevel } from '../../src/domain/value-objects/RiskLevel.ts'
 import { JsonPath } from '../../src/domain/value-objects/JsonPath.ts'
+import type { NodeType } from '../../src/domain/value-objects/NodeType.ts'
 
 describe('RiskLevel', () => {
   test('compare returns positive when first is higher', () => {
@@ -26,6 +27,21 @@ describe('RiskLevel', () => {
   test('isAtLeast returns true for equal levels', () => {
     expect(RiskLevel.isAtLeast('Medium', 'Medium')).toBe(true)
   })
+
+  test('compare Informational vs Low returns negative', () => {
+    expect(RiskLevel.compare('Informational', 'Low')).toBeLessThan(0)
+  })
+
+  test('isAtLeast Informational meets Informational', () => {
+    expect(RiskLevel.isAtLeast('Informational', 'Informational')).toBe(true)
+  })
+
+  test('constants have correct values', () => {
+    expect(RiskLevel.High).toBe('High')
+    expect(RiskLevel.Medium).toBe('Medium')
+    expect(RiskLevel.Low).toBe('Low')
+    expect(RiskLevel.Informational).toBe('Informational')
+  })
 })
 
 describe('JsonPath', () => {
@@ -41,5 +57,31 @@ describe('JsonPath', () => {
   test('toString returns expression', () => {
     const path = new JsonPath('$.name')
     expect(path.toString()).toBe('$.name')
+  })
+
+  test('handles complex expressions', () => {
+    const path1 = new JsonPath('$.store.book[*].author')
+    expect(path1.expression).toBe('$.store.book[*].author')
+
+    const path2 = new JsonPath('$..price')
+    expect(path2.expression).toBe('$..price')
+  })
+
+  test('$ alone is valid', () => {
+    const path = new JsonPath('$')
+    expect(path.expression).toBe('$')
+    expect(path.toString()).toBe('$')
+  })
+})
+
+describe('NodeType', () => {
+  test('includes all expected types', () => {
+    const types: NodeType[] = ['class', 'interface', 'function', 'file', 'module']
+    expect(types).toHaveLength(5)
+    expect(types).toContain('class')
+    expect(types).toContain('interface')
+    expect(types).toContain('function')
+    expect(types).toContain('file')
+    expect(types).toContain('module')
   })
 })
