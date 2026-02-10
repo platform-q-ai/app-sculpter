@@ -11,6 +11,9 @@ export class TestWorld extends World {
   graph!: GraphPort
   security!: SecurityPort
 
+  // Shared state
+  variables: Map<string, unknown> = new Map()
+
   // Services
   private variableService = new VariableService()
   private interpolationService = new InterpolationService(this.variableService)

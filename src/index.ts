@@ -16,6 +16,19 @@ export type { CliPort } from './application/ports/index.ts'
 export type { GraphPort } from './application/ports/index.ts'
 export type { SecurityPort } from './application/ports/index.ts'
 
+// Spec-compatible adapter type aliases
+// The spec refers to these as "Adapters" rather than "Ports"
+import type { HttpPort } from './application/ports/index.ts'
+import type { BrowserPort } from './application/ports/index.ts'
+import type { CliPort } from './application/ports/index.ts'
+import type { GraphPort } from './application/ports/index.ts'
+import type { SecurityPort } from './application/ports/index.ts'
+export type HttpAdapter = HttpPort
+export type BrowserAdapter = BrowserPort
+export type CliAdapter = CliPort
+export type GraphAdapter = GraphPort
+export type SecurityAdapter = SecurityPort
+
 // Factories
 export { createAdapters } from './infrastructure/factories/index.ts'
 export type { Adapters } from './infrastructure/factories/index.ts'
@@ -29,8 +42,12 @@ export type {
   HttpRequest,
   CommandResult,
   GraphNode,
+  DependencyType,
   Dependency,
   Cycle,
+  LayerInfo,
+  QueryResult,
+  ScreenshotOptions,
   SecurityAlert,
   ConfidenceLevel,
   ScanResult,
@@ -39,6 +56,11 @@ export type {
   SslCheckResult,
   Variable,
 } from './domain/entities/index.ts'
+
+// Spec-compatible type aliases for domain entities
+import type { GraphNode, SecurityAlert } from './domain/entities/index.ts'
+export type Node = GraphNode
+export type Alert = SecurityAlert
 
 export { RiskLevel } from './domain/value-objects/index.ts'
 export type { NodeType } from './domain/value-objects/index.ts'
