@@ -11,7 +11,7 @@ export class PlaywrightHttpAdapter implements HttpPort {
   private _response!: HttpResponse
   private rawResponse!: APIResponse
 
-  constructor(private readonly config: HttpAdapterConfig) {}
+  constructor(readonly config: HttpAdapterConfig) {}
 
   async initialize(): Promise<void> {
     this.context = await request.newContext({
@@ -70,7 +70,7 @@ export class PlaywrightHttpAdapter implements HttpPort {
     await this.request('DELETE', path)
   }
 
-  private async request(method: string, path: string, body?: unknown): Promise<void> {
+  async request(method: string, path: string, body?: unknown): Promise<void> {
     const startTime = Date.now()
 
     const url = this.buildUrl(path)
@@ -104,8 +104,24 @@ export class PlaywrightHttpAdapter implements HttpPort {
     return this._response.status
   }
 
+  get statusText(): string {
+    return this._response.statusText
+  }
+
+  get headers(): Record<string, string> {
+    return this._response.headers
+  }
+
   get body(): unknown {
     return this._response.body
+  }
+
+  get text(): string {
+    return this._response.text
+  }
+
+  get responseTime(): number {
+    return this._response.responseTime
   }
 
   getBodyPath(jsonPath: string): unknown {

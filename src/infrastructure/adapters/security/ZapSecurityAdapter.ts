@@ -2,6 +2,7 @@ import type { SecurityPort } from '../../../application/ports/index.ts'
 import type { SecurityAdapterConfig } from '../../../application/config/index.ts'
 import type {
   SecurityAlert,
+  ConfidenceLevel,
   ScanResult,
   SpiderResult,
   HeaderCheckResult,
@@ -14,9 +15,9 @@ export class ZapSecurityAdapter implements SecurityPort {
   private readonly baseUrl: string
   private readonly apiKey: string
 
-  constructor(private readonly config: SecurityAdapterConfig) {
-    this.baseUrl = config.apiUrl.replace(/\/$/, '')
-    this.apiKey = config.apiKey ?? ''
+  constructor(readonly config: SecurityAdapterConfig) {
+    this.baseUrl = config.zapUrl.replace(/\/$/, '')
+    this.apiKey = config.zapApiKey ?? ''
   }
 
   private async zapRequest<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
@@ -24,9 +25,7 @@ export class ZapSecurityAdapter implements SecurityPort {
     url.searchParams.set('apikey', this.apiKey)
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
 
-    const response = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(this.config.timeout ?? 60000),
-    })
+    const response = await fetch(url.toString())
 
     if (!response.ok) {
       throw new Error(`ZAP API request failed: ${response.status} ${response.statusText}`)
@@ -36,14 +35,13 @@ export class ZapSecurityAdapter implements SecurityPort {
   }
 
   async spider(url: string): Promise<SpiderResult> {
-    // Start spider scan
+    const startTime = Date.now()
     const startResult = await this.zapRequest<{ scan: string }>('/JSON/spider/action/scan/', {
       url,
     })
 
     const scanId = startResult.scan
 
-    // Poll for completion
     let progress = 0
     while (progress < 100) {
       const statusResult = await this.zapRequest<{ status: string }>(
@@ -56,18 +54,43 @@ export class ZapSecurityAdapter implements SecurityPort {
       }
     }
 
-    // Get results
     const results = await this.zapRequest<{ results: string[] }>('/JSON/spider/view/results/', {
       scanId,
     })
 
     return {
       urlsFound: results.results.length,
-      urls: results.results,
+      duration: Date.now() - startTime,
+    }
+  }
+
+  async ajaxSpider(url: string): Promise<SpiderResult> {
+    const startTime = Date.now()
+    await this.zapRequest('/JSON/ajaxSpider/action/scan/', { url })
+
+    let status = 'running'
+    while (status === 'running') {
+      const statusResult = await this.zapRequest<{ status: string }>(
+        '/JSON/ajaxSpider/view/status/',
+      )
+      status = statusResult.status
+      if (status === 'running') {
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+      }
+    }
+
+    const results = await this.zapRequest<{ results: string[] }>(
+      '/JSON/ajaxSpider/view/results/',
+    )
+
+    return {
+      urlsFound: results.results?.length ?? 0,
+      duration: Date.now() - startTime,
     }
   }
 
   async activeScan(url: string): Promise<ScanResult> {
+    const startTime = Date.now()
     const startResult = await this.zapRequest<{ scan: string }>('/JSON/ascan/action/scan/', {
       url,
     })
@@ -89,13 +112,14 @@ export class ZapSecurityAdapter implements SecurityPort {
     await this.refreshAlerts()
 
     return {
-      alerts: this._alerts,
+      alertCount: this._alerts.length,
+      duration: Date.now() - startTime,
       progress: 100,
-      status: 'complete',
     }
   }
 
   async passiveScan(url: string): Promise<ScanResult> {
+    const startTime = Date.now()
     // Passive scan happens automatically when spidering/browsing
     // We just need to wait for the passive scanner to finish
     let recordsRemaining = 1
@@ -112,9 +136,9 @@ export class ZapSecurityAdapter implements SecurityPort {
     await this.refreshAlerts()
 
     return {
-      alerts: this._alerts,
+      alertCount: this._alerts.length,
+      duration: Date.now() - startTime,
       progress: 100,
-      status: 'complete',
     }
   }
 
@@ -122,14 +146,23 @@ export class ZapSecurityAdapter implements SecurityPort {
     return this._alerts
   }
 
+  get alertCount(): number {
+    return this._alerts.length
+  }
+
   getAlertsByRisk(risk: RiskLevel): SecurityAlert[] {
     return this._alerts.filter((alert) => alert.risk === risk)
   }
 
-  async checkSecurityHeaders(url: string): Promise<HeaderCheckResult> {
-    // Fetch the URL to trigger passive scan of headers
-    await fetch(url)
+  getAlertsByConfidence(confidence: ConfidenceLevel): SecurityAlert[] {
+    return this._alerts.filter((alert) => alert.confidence === confidence)
+  }
 
+  getAlertsByType(alertType: string): SecurityAlert[] {
+    return this._alerts.filter((alert) => alert.name === alertType)
+  }
+
+  async checkSecurityHeaders(url: string): Promise<HeaderCheckResult> {
     const expectedHeaders = [
       'Content-Security-Policy',
       'X-Content-Type-Options',
@@ -141,36 +174,56 @@ export class ZapSecurityAdapter implements SecurityPort {
     ]
 
     const response = await fetch(url)
-    const headers: Record<string, { present: boolean; value?: string }> = {}
-    const missingHeaders: string[] = []
+    const headers: Record<string, string> = {}
+    const missing: string[] = []
+    const issues: string[] = []
 
     for (const header of expectedHeaders) {
       const value = response.headers.get(header)
-      headers[header] = {
-        present: value !== null,
-        value: value ?? undefined,
-      }
-      if (value === null) {
-        missingHeaders.push(header)
+      if (value !== null) {
+        headers[header] = value
+      } else {
+        missing.push(header)
+        issues.push(`Missing security header: ${header}`)
       }
     }
 
-    return { headers, missingHeaders }
+    // Also capture any other response headers
+    response.headers.forEach((value, key) => {
+      if (!headers[key]) {
+        headers[key] = value
+      }
+    })
+
+    return { headers, missing, issues }
   }
 
   async checkSslCertificate(url: string): Promise<SslCheckResult> {
     try {
       const response = await fetch(url)
-      // Basic SSL check - if fetch succeeds over HTTPS, certificate is valid
       const isHttps = new URL(url).protocol === 'https:'
+
+      if (!isHttps) {
+        return {
+          valid: false,
+          expiresAt: new Date(0),
+          issuer: 'N/A',
+          issues: ['URL does not use HTTPS'],
+        }
+      }
+
       return {
-        valid: isHttps && response.ok,
-        errors: isHttps ? [] : ['URL does not use HTTPS'],
+        valid: response.ok,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Placeholder
+        issuer: 'Unknown', // Cannot determine from fetch API
+        issues: [],
       }
     } catch (error) {
       return {
         valid: false,
-        errors: [error instanceof Error ? error.message : 'Unknown SSL error'],
+        expiresAt: new Date(0),
+        issuer: 'Unknown',
+        issues: [error instanceof Error ? error.message : 'Unknown SSL error'],
       }
     }
   }
@@ -182,6 +235,11 @@ export class ZapSecurityAdapter implements SecurityPort {
         ? new TextDecoder().decode(report)
         : String(report)
     await Bun.write(outputPath, reportHtml)
+  }
+
+  async generateJsonReport(outputPath: string): Promise<void> {
+    const report = await this.zapRequest<unknown>('/OTHER/core/other/jsonreport/')
+    await Bun.write(outputPath, JSON.stringify(report, null, 2))
   }
 
   async newSession(): Promise<void> {
@@ -201,7 +259,9 @@ export class ZapSecurityAdapter implements SecurityPort {
       description: string
       url: string
       solution: string
+      reference: string
       cweid: string
+      wascid: string
     }
 
     const result = await this.zapRequest<{ alerts: ZapAlert[] }>('/JSON/core/view/alerts/')
@@ -213,7 +273,9 @@ export class ZapSecurityAdapter implements SecurityPort {
       description: alert.description,
       url: alert.url,
       solution: alert.solution,
+      reference: alert.reference ?? '',
       cweid: alert.cweid,
+      wascid: alert.wascid ?? '',
     }))
   }
 }
