@@ -2,9 +2,16 @@ import { Given } from '@cucumber/cucumber'
 import { TestWorld } from '../../world/index.ts'
 
 Given<TestWorld>(
-  'I set env {string} to {string}',
+  'I set environment variable {string} to {string}',
   function (name: string, value: string) {
     this.cli.setEnv(name, this.interpolate(value))
+  },
+)
+
+Given<TestWorld>(
+  'I clear environment variable {string}',
+  function (name: string) {
+    this.cli.clearEnv(name)
   },
 )
 

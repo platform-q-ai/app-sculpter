@@ -73,9 +73,46 @@ Then<TestWorld>(
 )
 
 Then<TestWorld>(
+  'stdout should be empty',
+  function () {
+    expect(this.cli.stdout.trim()).toBe('')
+  },
+)
+
+Then<TestWorld>(
   'stdout should equal:',
   function (docString: string) {
     expect(this.cli.stdout.trim()).toBe(this.interpolate(docString).trim())
+  },
+)
+
+Then<TestWorld>(
+  'stdout line {int} should equal {string}',
+  function (lineNumber: number, expected: string) {
+    const line = this.cli.stdoutLine(lineNumber)
+    expect(line).toBe(this.interpolate(expected))
+  },
+)
+
+Then<TestWorld>(
+  'stdout line {int} should contain {string}',
+  function (lineNumber: number, expected: string) {
+    const line = this.cli.stdoutLine(lineNumber)
+    expect(line).toContain(this.interpolate(expected))
+  },
+)
+
+Then<TestWorld>(
+  'stderr should match {string}',
+  function (pattern: string) {
+    expect(this.cli.stderr).toMatch(new RegExp(pattern))
+  },
+)
+
+Then<TestWorld>(
+  'the command should complete within {int} seconds',
+  function (maxSeconds: number) {
+    expect(this.cli.duration).toBeLessThanOrEqual(maxSeconds * 1000)
   },
 )
 
@@ -97,5 +134,20 @@ Then<TestWorld>(
   'I store exit code as {string}',
   function (variableName: string) {
     this.setVariable(variableName, this.cli.exitCode)
+  },
+)
+
+Then<TestWorld>(
+  'I store stdout line {int} as {string}',
+  function (lineNumber: number, variableName: string) {
+    this.setVariable(variableName, this.cli.stdoutLine(lineNumber))
+  },
+)
+
+Then<TestWorld>(
+  'I store stdout matching {string} as {string}',
+  function (pattern: string, variableName: string) {
+    const match = this.cli.stdoutMatching(new RegExp(pattern))
+    this.setVariable(variableName, match)
   },
 )
