@@ -1,7 +1,11 @@
 import type { HttpResponse } from '../../domain/entities/index.ts'
+import type { HttpAdapterConfig } from '../config/ConfigSchema.ts'
 
 export interface HttpPort {
-  // Request building (chainable)
+  // Configuration
+  readonly config: HttpAdapterConfig
+
+  // Request building (chainable, reset after each request)
   setHeader(name: string, value: string): this
   setHeaders(headers: Record<string, string>): this
   setQueryParam(name: string, value: string): this
@@ -15,11 +19,16 @@ export interface HttpPort {
   put(path: string, body?: unknown): Promise<void>
   patch(path: string, body?: unknown): Promise<void>
   delete(path: string): Promise<void>
+  request(method: string, path: string, body?: unknown): Promise<void>
 
-  // Response accessors
+  // Response accessors (from last request)
   readonly response: HttpResponse
   readonly status: number
+  readonly statusText: string
+  readonly headers: Record<string, string>
   readonly body: unknown
+  readonly text: string
+  readonly responseTime: number
 
   // Utilities
   getBodyPath(jsonPath: string): unknown

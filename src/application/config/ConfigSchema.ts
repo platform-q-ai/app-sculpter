@@ -24,7 +24,8 @@ export interface BrowserAdapterConfig {
   baseURL: string
   headless?: boolean
   viewport?: { width: number; height: number }
-  timeout?: number
+  screenshot?: 'always' | 'only-on-failure' | 'never'
+  video?: 'on' | 'off' | 'retain-on-failure'
 }
 
 export interface CliAdapterConfig {
@@ -42,7 +43,6 @@ export interface GraphAdapterConfig {
 }
 
 export interface SecurityAdapterConfig {
-  apiUrl: string
-  apiKey?: string
-  timeout?: number
+  zapUrl: string
+  zapApiKey?: string
 }
