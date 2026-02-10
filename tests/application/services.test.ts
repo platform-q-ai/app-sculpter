@@ -7,7 +7,7 @@ describe('VariableService', () => {
   test('set and get a variable', () => {
     const service = new VariableService()
     service.set('name', 'test')
-    expect(service.get('name')).toBe('test')
+    expect(service.get<string>('name')).toBe('test')
   })
 
   test('get typed variable', () => {
