@@ -1,8 +1,19 @@
 {
-  "name": "app-sculpter",
-  "module": "index.ts",
+  "name": "extern-bdd",
+  "version": "0.1.0",
+  "description": "BDD testing framework with Clean Architecture - HTTP, Browser, CLI, Graph, and Security testing via Cucumber step definitions",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./steps": "./src/interface/steps/index.ts",
+    "./hooks": "./src/interface/hooks/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "test:cucumber": "cucumber-js"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/jsonpath": "^0.2.4"
