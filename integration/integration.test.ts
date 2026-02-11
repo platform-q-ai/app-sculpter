@@ -126,7 +126,7 @@ describe('Integration: CLI project — failure reporting', () => {
   async function runFailingScenario(
     featureContent: string,
   ): Promise<ProjectResult> {
-    const tmpFile = `/tmp/extern-bdd-fail-${Date.now()}-${Math.random().toString(36).slice(2)}.feature`
+    const tmpFile = `/tmp/exo-bdd-fail-${Date.now()}-${Math.random().toString(36).slice(2)}.feature`
     await Bun.write(tmpFile, featureContent)
     try {
       return runProject('cli', '--format', 'pretty', tmpFile)

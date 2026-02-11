@@ -1,6 +1,6 @@
 import { test, expect, describe } from 'bun:test'
 import type {
-  ExternBddConfig,
+  ExoBddConfig,
   HttpAdapterConfig,
   BrowserAdapterConfig,
   CliAdapterConfig,
@@ -9,8 +9,8 @@ import type {
 } from '../../src/application/config/ConfigSchema.ts'
 
 describe('ConfigSchema type validation', () => {
-  test('ExternBddConfig with all adapters configured', () => {
-    const config: ExternBddConfig = {
+  test('ExoBddConfig with all adapters configured', () => {
+    const config: ExoBddConfig = {
       adapters: {
         http: { baseURL: 'http://localhost:3000' },
         browser: { baseURL: 'http://localhost:3000' },
@@ -26,8 +26,8 @@ describe('ConfigSchema type validation', () => {
     expect(config.adapters.security).toBeDefined()
   })
 
-  test('ExternBddConfig with no adapters', () => {
-    const config: ExternBddConfig = {
+  test('ExoBddConfig with no adapters', () => {
+    const config: ExoBddConfig = {
       adapters: {},
     }
     expect(config.adapters).toBeDefined()
@@ -38,8 +38,8 @@ describe('ConfigSchema type validation', () => {
     expect(config.adapters.security).toBeUndefined()
   })
 
-  test('ExternBddConfig with only HTTP adapter', () => {
-    const config: ExternBddConfig = {
+  test('ExoBddConfig with only HTTP adapter', () => {
+    const config: ExoBddConfig = {
       adapters: {
         http: { baseURL: 'https://api.example.com' },
       },

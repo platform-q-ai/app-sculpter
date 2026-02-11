@@ -1,4 +1,4 @@
-# Extern-BDD Specification
+# Exo BDD Specification
 
 **Version:** 0.2.0  
 **Status:** Draft  
@@ -46,7 +46,7 @@ A Cucumber.js-based BDD framework for external/black-box testing, optimized for 
 - **Adapter implementations** for HTTP, Browser, CLI, Graph Database, and Security testing
 - **TestWorld class** that wires adapters together with typed interfaces
 - **Core step definitions** (~75 pre-built steps) that use the adapters
-- **Configuration loader** for typed `extern-bdd.config.ts` files
+- **Configuration loader** for typed `exo-bdd.config.ts` files
 
 ### 1.3 What This Framework Does NOT Provide
 
@@ -64,7 +64,7 @@ A Cucumber.js-based BDD framework for external/black-box testing, optimized for 
 ```
 my-tests/
 ├── cucumber.js               # Cucumber configuration (standard)
-├── extern-bdd.config.ts      # Adapter configuration
+├── exo-bdd.config.ts      # Adapter configuration
 ├── features/
 │   ├── api/
 │   │   └── users.feature
@@ -89,7 +89,7 @@ my-tests/
 {
   "devDependencies": {
     "@cucumber/cucumber": "^10.0.0",
-    "extern-bdd": "^0.1.0",
+    "exo-bdd": "^0.1.0",
     "@playwright/test": "^1.40.0",
     "neo4j-driver": "^5.0.0",
     "typescript": "^5.0.0"
@@ -125,7 +125,7 @@ module.exports = {
     "outDir": "./dist",
     "rootDir": "./"
   },
-  "include": ["support/**/*", "steps/**/*", "extern-bdd.config.ts"]
+  "include": ["support/**/*", "steps/**/*", "exo-bdd.config.ts"]
 }
 ```
 
@@ -136,8 +136,8 @@ module.exports = {
 ### 3.1 Configuration File
 
 ```typescript
-// extern-bdd.config.ts
-import { defineConfig } from 'extern-bdd'
+// exo-bdd.config.ts
+import { defineConfig } from 'exo-bdd'
 
 export default defineConfig({
   adapters: {
@@ -184,7 +184,7 @@ export default defineConfig({
 ### 3.2 Configuration Types
 
 ```typescript
-interface ExternBddConfig {
+interface ExoBddConfig {
   adapters: {
     http?: HttpAdapterConfig
     browser?: BrowserAdapterConfig
@@ -251,7 +251,7 @@ import type {
   CliAdapter,
   GraphAdapter,
   SecurityAdapter
-} from 'extern-bdd'
+} from 'exo-bdd'
 
 export interface TestWorld extends World {
   // Adapters (initialized in hooks)
@@ -276,7 +276,7 @@ export interface TestWorld extends World {
 ```typescript
 // support/world.ts
 import { World, IWorldOptions } from '@cucumber/cucumber'
-import type { HttpAdapter, BrowserAdapter, CliAdapter, GraphAdapter, SecurityAdapter } from 'extern-bdd'
+import type { HttpAdapter, BrowserAdapter, CliAdapter, GraphAdapter, SecurityAdapter } from 'exo-bdd'
 
 export class TestWorld extends World {
   http!: HttpAdapter
@@ -329,7 +329,7 @@ AfterAll        → Dispose all adapters, close connections
 ```typescript
 // support/hooks.ts
 import { BeforeAll, AfterAll, Before, After, setWorldConstructor, Status } from '@cucumber/cucumber'
-import { loadConfig, createAdapters, Adapters } from 'extern-bdd'
+import { loadConfig, createAdapters, Adapters } from 'exo-bdd'
 import { TestWorld } from './world'
 
 setWorldConstructor(TestWorld)

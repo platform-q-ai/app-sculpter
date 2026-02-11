@@ -1,4 +1,4 @@
-import type { ExternBddConfig } from '../../application/config/index.ts'
+import type { ExoBddConfig } from '../../application/config/index.ts'
 import type { Adapters } from '../../application/ports/Adapters.ts'
 import { PlaywrightHttpAdapter } from '../adapters/http/PlaywrightHttpAdapter.ts'
 import { PlaywrightBrowserAdapter } from '../adapters/browser/PlaywrightBrowserAdapter.ts'
@@ -13,7 +13,7 @@ interface Disposable {
   dispose(): Promise<void>
 }
 
-export async function createAdapters(config: ExternBddConfig): Promise<Adapters> {
+export async function createAdapters(config: ExoBddConfig): Promise<Adapters> {
   const created: Disposable[] = []
 
   try {

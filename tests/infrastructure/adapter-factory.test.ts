@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, mock } from 'bun:test'
-import type { ExternBddConfig } from '../../src/application/config/index.ts'
+import type { ExoBddConfig } from '../../src/application/config/index.ts'
 
 // --- Mock @playwright/test ---
 
@@ -85,7 +85,7 @@ const { createAdapters } = await import(
 
 // --- Config helpers ---
 
-const fullConfig: ExternBddConfig = {
+const fullConfig: ExoBddConfig = {
   adapters: {
     http: {
       baseURL: 'https://api.example.com',
@@ -110,11 +110,11 @@ const fullConfig: ExternBddConfig = {
   },
 }
 
-const emptyConfig: ExternBddConfig = {
+const emptyConfig: ExoBddConfig = {
   adapters: {},
 }
 
-function configWith(adapter: keyof ExternBddConfig['adapters']): ExternBddConfig {
+function configWith(adapter: keyof ExoBddConfig['adapters']): ExoBddConfig {
   return {
     adapters: {
       [adapter]: fullConfig.adapters[adapter],
@@ -307,7 +307,7 @@ describe('AdapterFactory', () => {
       return Promise.resolve()
     })
 
-    const config: ExternBddConfig = {
+    const config: ExoBddConfig = {
       adapters: {
         http: fullConfig.adapters.http,
         graph: fullConfig.adapters.graph,

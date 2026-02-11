@@ -1,4 +1,4 @@
-export interface ExternBddConfig {
+export interface ExoBddConfig {
   adapters: {
     http?: HttpAdapterConfig
     browser?: BrowserAdapterConfig

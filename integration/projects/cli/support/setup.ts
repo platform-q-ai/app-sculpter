@@ -14,7 +14,7 @@ setWorldConstructor(TestWorld)
 let adapters: Adapters
 
 BeforeAll(async function () {
-  const configPath = resolve(import.meta.dir, '..', 'extern-bdd.config.ts')
+  const configPath = resolve(import.meta.dir, '..', 'exo-bdd.config.ts')
   const config = await loadConfig(configPath)
   adapters = await createAdapters(config)
 })

@@ -1,4 +1,4 @@
-# app-sculpter
+# Exo BDD
 
 To install dependencies:
 

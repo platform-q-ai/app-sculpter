@@ -1,15 +1,15 @@
-import type { ExternBddConfig } from './ConfigSchema.ts'
+import type { ExoBddConfig } from './ConfigSchema.ts'
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
 
-export async function loadConfig(configPath?: string): Promise<ExternBddConfig> {
-  const path = configPath ?? resolve(process.cwd(), 'extern-bdd.config.ts')
+export async function loadConfig(configPath?: string): Promise<ExoBddConfig> {
+  const path = configPath ?? resolve(process.cwd(), 'exo-bdd.config.ts')
 
   const file = Bun.file(path)
   if (!(await file.exists())) {
     throw new Error(
       `Config file not found: ${path}. ` +
-      `Create an extern-bdd.config.ts file or pass a custom path to loadConfig().`
+      `Create an exo-bdd.config.ts file or pass a custom path to loadConfig().`
     )
   }
 
@@ -29,9 +29,9 @@ export async function loadConfig(configPath?: string): Promise<ExternBddConfig> 
     )
   }
 
-  return module.default as ExternBddConfig
+  return module.default as ExoBddConfig
 }
 
-export function defineConfig(config: ExternBddConfig): ExternBddConfig {
+export function defineConfig(config: ExoBddConfig): ExoBddConfig {
   return config
 }

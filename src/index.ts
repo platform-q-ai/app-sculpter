@@ -1,7 +1,7 @@
 // Configuration
 export { defineConfig, loadConfig } from './application/config/index.ts'
 export type {
-  ExternBddConfig,
+  ExoBddConfig,
   HttpAdapterConfig,
   BrowserAdapterConfig,
   CliAdapterConfig,

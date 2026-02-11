@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
 import { loadConfig, defineConfig } from '../../src/application/config/ConfigLoader.ts'
-import type { ExternBddConfig } from '../../src/application/config/ConfigSchema.ts'
+import type { ExoBddConfig } from '../../src/application/config/ConfigSchema.ts'
 import { resolve } from 'node:path'
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'node:fs'
 
@@ -8,7 +8,7 @@ const tmpDir = resolve(import.meta.dir, '../../.tmp-test-configs')
 
 describe('defineConfig', () => {
   test('returns the same config object', () => {
-    const config: ExternBddConfig = {
+    const config: ExoBddConfig = {
       adapters: {
         http: { baseURL: 'https://api.example.com' },
       },
@@ -66,7 +66,7 @@ describe('loadConfig', () => {
     ).rejects.toThrow()
   })
 
-  test('loadConfig returns parsed ExternBddConfig', async () => {
+  test('loadConfig returns parsed ExoBddConfig', async () => {
     const configPath = resolve(tmpDir, 'full-config.ts')
     writeFileSync(
       configPath,
@@ -85,7 +85,7 @@ describe('loadConfig', () => {
 
   test('loadConfig loads from default path when no arg provided', async () => {
     // This test verifies the default path resolution behavior
-    // It will throw because extern-bdd.config.ts likely doesn't exist in cwd
+    // It will throw because exo-bdd.config.ts likely doesn't exist in cwd
     await expect(loadConfig()).rejects.toThrow()
   })
 })
