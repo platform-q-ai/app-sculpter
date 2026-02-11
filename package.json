@@ -12,7 +12,9 @@
   },
   "scripts": {
     "test": "bun test",
-    "test:cucumber": "cucumber-js"
+    "test:cucumber": "cucumber-js",
+    "test:integration": "bun test integration/",
+    "test:project": "bun run integration/run-project.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
