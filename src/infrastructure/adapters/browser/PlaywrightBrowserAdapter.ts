@@ -6,7 +6,7 @@ import type { ScreenshotOptions } from '../../../domain/entities/index.ts'
 export class PlaywrightBrowserAdapter implements BrowserPort {
   private browser!: Browser
   private context!: BrowserContext
-  private _page!: Page
+  private _page?: Page
 
   constructor(readonly config: BrowserAdapterConfig) {}
 
@@ -19,129 +19,136 @@ export class PlaywrightBrowserAdapter implements BrowserPort {
     this._page = await this.context.newPage()
   }
 
-  get page(): Page {
+  private guardPage(): Page {
+    if (!this._page) {
+      throw new Error('Browser not initialized. Call initialize() before accessing the page.')
+    }
     return this._page
+  }
+
+  get page(): Page {
+    return this.guardPage()
   }
 
   // Navigation
   async goto(path: string): Promise<void> {
-    await this._page.goto(path)
+    await this.guardPage().goto(path)
   }
 
   async reload(): Promise<void> {
-    await this._page.reload()
+    await this.guardPage().reload()
   }
 
   async goBack(): Promise<void> {
-    await this._page.goBack()
+    await this.guardPage().goBack()
   }
 
   async goForward(): Promise<void> {
-    await this._page.goForward()
+    await this.guardPage().goForward()
   }
 
   // Interactions
   async click(selector: string): Promise<void> {
-    await this._page.click(selector)
+    await this.guardPage().click(selector)
   }
 
   async doubleClick(selector: string): Promise<void> {
-    await this._page.dblclick(selector)
+    await this.guardPage().dblclick(selector)
   }
 
   async fill(selector: string, value: string): Promise<void> {
-    await this._page.fill(selector, value)
+    await this.guardPage().fill(selector, value)
   }
 
   async clear(selector: string): Promise<void> {
-    await this._page.fill(selector, '')
+    await this.guardPage().fill(selector, '')
   }
 
   async selectOption(selector: string, value: string): Promise<void> {
-    await this._page.selectOption(selector, value)
+    await this.guardPage().selectOption(selector, value)
   }
 
   async check(selector: string): Promise<void> {
-    await this._page.check(selector)
+    await this.guardPage().check(selector)
   }
 
   async uncheck(selector: string): Promise<void> {
-    await this._page.uncheck(selector)
+    await this.guardPage().uncheck(selector)
   }
 
   async press(key: string): Promise<void> {
-    await this._page.keyboard.press(key)
+    await this.guardPage().keyboard.press(key)
   }
 
   async type(selector: string, text: string): Promise<void> {
-    await this._page.locator(selector).pressSequentially(text)
+    await this.guardPage().locator(selector).pressSequentially(text)
   }
 
   async hover(selector: string): Promise<void> {
-    await this._page.hover(selector)
+    await this.guardPage().hover(selector)
   }
 
   async focus(selector: string): Promise<void> {
-    await this._page.focus(selector)
+    await this.guardPage().focus(selector)
   }
 
   // File upload
   async uploadFile(selector: string, filePath: string): Promise<void> {
-    await this._page.setInputFiles(selector, filePath)
+    await this.guardPage().setInputFiles(selector, filePath)
   }
 
   // Waiting
   async waitForSelector(selector: string, options?: WaitOptions): Promise<void> {
-    await this._page.waitForSelector(selector, {
+    await this.guardPage().waitForSelector(selector, {
       timeout: options?.timeout,
       state: options?.state,
     })
   }
 
   async waitForNavigation(): Promise<void> {
-    await this._page.waitForLoadState('networkidle')
+    await this.guardPage().waitForLoadState('networkidle')
   }
 
   async waitForLoadState(state?: 'load' | 'domcontentloaded' | 'networkidle'): Promise<void> {
-    await this._page.waitForLoadState(state ?? 'load')
+    await this.guardPage().waitForLoadState(state ?? 'load')
   }
 
   async waitForTimeout(ms: number): Promise<void> {
-    await this._page.waitForTimeout(ms)
+    await this.guardPage().waitForTimeout(ms)
   }
 
   // Information
   url(): string {
-    return this._page.url()
+    return this.guardPage().url()
   }
 
   async title(): Promise<string> {
-    return await this._page.title()
+    return await this.guardPage().title()
   }
 
   async textContent(selector: string): Promise<string | null> {
-    return await this._page.textContent(selector)
+    return await this.guardPage().textContent(selector)
   }
 
   async getAttribute(selector: string, name: string): Promise<string | null> {
-    return await this._page.getAttribute(selector, name)
+    return await this.guardPage().getAttribute(selector, name)
   }
 
   async isVisible(selector: string): Promise<boolean> {
-    return await this._page.isVisible(selector)
+    return await this.guardPage().isVisible(selector)
   }
 
   async isEnabled(selector: string): Promise<boolean> {
-    return await this._page.isEnabled(selector)
+    return await this.guardPage().isEnabled(selector)
   }
 
   async isChecked(selector: string): Promise<boolean> {
-    return await this._page.isChecked(selector)
+    return await this.guardPage().isChecked(selector)
   }
 
   // Screenshots
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
-    return (await this._page.screenshot({
+    return (await this.guardPage().screenshot({
       fullPage: options?.fullPage,
       clip: options?.clip,
       type: options?.type,
@@ -153,7 +160,7 @@ export class PlaywrightBrowserAdapter implements BrowserPort {
   // Context management
   async clearContext(): Promise<void> {
     await this.context.clearCookies()
-    await this._page.evaluate(() => localStorage.clear())
+    await this.guardPage().evaluate(() => localStorage.clear())
   }
 
   // Lifecycle

@@ -4,7 +4,8 @@ export class InterpolationService {
   constructor(private variables: VariableService) {}
 
   interpolate(text: string): string {
-    return text.replace(/\$\{(\w+)\}/g, (_, name) => {
+    // Support alphanumeric, underscore, hyphen, and dot in variable names
+    return text.replace(/\$\{([\w.\-]+)\}/g, (match, name) => {
       // Handle built-in variables
       switch (name) {
         case 'timestamp':
@@ -22,7 +23,11 @@ export class InterpolationService {
         case 'random_email':
           return `test_${this.randomString(6)}@example.com`
         default:
-          return String(this.variables.get(name))
+          if (this.variables.has(name)) {
+            return String(this.variables.get(name))
+          }
+          // Leave unresolved variables as-is so they don't cause silent failures
+          return match
       }
     })
   }

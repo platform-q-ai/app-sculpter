@@ -38,6 +38,7 @@ export class ZapSecurityAdapter implements SecurityPort {
 
   async spider(url: string): Promise<SpiderResult> {
     const startTime = Date.now()
+    const maxWaitMs = this.config.scanTimeout ?? 300000
     const startResult = await this.zapRequest<{ scan: string }>('/JSON/spider/action/scan/', {
       url,
     })
@@ -46,11 +47,17 @@ export class ZapSecurityAdapter implements SecurityPort {
 
     let progress = 0
     while (progress < 100) {
+      if (Date.now() - startTime > maxWaitMs) {
+        throw new Error(`ZAP spider scan timed out after ${maxWaitMs}ms (progress: ${progress}%)`)
+      }
       const statusResult = await this.zapRequest<{ status: string }>(
         '/JSON/spider/view/status/',
         { scanId },
       )
       progress = parseInt(statusResult.status, 10)
+      if (isNaN(progress)) {
+        throw new Error(`ZAP spider returned unexpected status: ${statusResult.status}`)
+      }
       if (progress < 100) {
         const delay = this.pollDelayMs >= 0 ? this.pollDelayMs : 1000
         await new Promise((resolve) => setTimeout(resolve, delay))
@@ -69,10 +76,14 @@ export class ZapSecurityAdapter implements SecurityPort {
 
   async ajaxSpider(url: string): Promise<SpiderResult> {
     const startTime = Date.now()
+    const maxWaitMs = this.config.scanTimeout ?? 300000
     await this.zapRequest('/JSON/ajaxSpider/action/scan/', { url })
 
     let status = 'running'
     while (status === 'running') {
+      if (Date.now() - startTime > maxWaitMs) {
+        throw new Error(`ZAP ajax spider scan timed out after ${maxWaitMs}ms`)
+      }
       const statusResult = await this.zapRequest<{ status: string }>(
         '/JSON/ajaxSpider/view/status/',
       )
@@ -95,6 +106,7 @@ export class ZapSecurityAdapter implements SecurityPort {
 
   async activeScan(url: string): Promise<ScanResult> {
     const startTime = Date.now()
+    const maxWaitMs = this.config.scanTimeout ?? 300000
     const startResult = await this.zapRequest<{ scan: string }>('/JSON/ascan/action/scan/', {
       url,
     })
@@ -103,11 +115,17 @@ export class ZapSecurityAdapter implements SecurityPort {
 
     let progress = 0
     while (progress < 100) {
+      if (Date.now() - startTime > maxWaitMs) {
+        throw new Error(`ZAP active scan timed out after ${maxWaitMs}ms (progress: ${progress}%)`)
+      }
       const statusResult = await this.zapRequest<{ status: string }>(
         '/JSON/ascan/view/status/',
         { scanId },
       )
       progress = parseInt(statusResult.status, 10)
+      if (isNaN(progress)) {
+        throw new Error(`ZAP active scan returned unexpected status: ${statusResult.status}`)
+      }
       if (progress < 100) {
         const delay = this.pollDelayMs >= 0 ? this.pollDelayMs : 2000
         await new Promise((resolve) => setTimeout(resolve, delay))
@@ -125,14 +143,21 @@ export class ZapSecurityAdapter implements SecurityPort {
 
   async passiveScan(url: string): Promise<ScanResult> {
     const startTime = Date.now()
+    const maxWaitMs = this.config.scanTimeout ?? 300000
     // Passive scan happens automatically when spidering/browsing
     // We just need to wait for the passive scanner to finish
     let recordsRemaining = 1
     while (recordsRemaining > 0) {
+      if (Date.now() - startTime > maxWaitMs) {
+        throw new Error(`ZAP passive scan timed out after ${maxWaitMs}ms (records remaining: ${recordsRemaining})`)
+      }
       const result = await this.zapRequest<{ recordsToScan: string }>(
         '/JSON/pscan/view/recordsToScan/',
       )
       recordsRemaining = parseInt(result.recordsToScan, 10)
+      if (isNaN(recordsRemaining)) {
+        throw new Error(`ZAP passive scan returned unexpected recordsToScan: ${result.recordsToScan}`)
+      }
       if (recordsRemaining > 0) {
         const delay = this.pollDelayMs >= 0 ? this.pollDelayMs : 1000
         await new Promise((resolve) => setTimeout(resolve, delay))

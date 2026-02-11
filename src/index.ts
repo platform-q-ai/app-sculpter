@@ -29,9 +29,11 @@ export type CliAdapter = CliPort
 export type GraphAdapter = GraphPort
 export type SecurityAdapter = SecurityPort
 
-// Factories
+// Adapter factory
 export { createAdapters } from './infrastructure/factories/index.ts'
-export type { Adapters } from './infrastructure/factories/index.ts'
+
+// Adapters interface (from application layer per Clean Architecture)
+export type { Adapters } from './application/ports/index.ts'
 
 // World
 export { TestWorld } from './interface/world/index.ts'

@@ -127,10 +127,10 @@ describe('InterpolationService', () => {
     expect(service.interpolate('no variables here')).toBe('no variables here')
   })
 
-  test('throws for undefined user variable', () => {
+  test('leaves undefined user variables uninterpolated', () => {
     const vars = new VariableService()
     const service = new InterpolationService(vars)
-    expect(() => service.interpolate('${unknown}')).toThrow(VariableNotFoundError)
+    expect(service.interpolate('${unknown}')).toBe('${unknown}')
   })
 
   test('interpolates timestamp_ms as millisecond timestamp', () => {

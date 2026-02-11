@@ -8,8 +8,8 @@ export class PlaywrightHttpAdapter implements HttpPort {
   private context!: APIRequestContext
   private pendingHeaders: Record<string, string> = {}
   private pendingQueryParams: Record<string, string> = {}
-  private _response!: HttpResponse
-  private rawResponse!: APIResponse
+  private _response?: HttpResponse
+  private rawResponse?: APIResponse
 
   constructor(readonly config: HttpAdapterConfig) {}
 
@@ -96,36 +96,43 @@ export class PlaywrightHttpAdapter implements HttpPort {
     this.resetPending()
   }
 
-  get response(): HttpResponse {
+  private guardResponse(): HttpResponse {
+    if (!this._response) {
+      throw new Error('No HTTP request has been made yet. Call a request method (get, post, etc.) before accessing the response.')
+    }
     return this._response
   }
 
+  get response(): HttpResponse {
+    return this.guardResponse()
+  }
+
   get status(): number {
-    return this._response.status
+    return this.guardResponse().status
   }
 
   get statusText(): string {
-    return this._response.statusText
+    return this.guardResponse().statusText
   }
 
   get headers(): Record<string, string> {
-    return this._response.headers
+    return this.guardResponse().headers
   }
 
   get body(): unknown {
-    return this._response.body
+    return this.guardResponse().body
   }
 
   get text(): string {
-    return this._response.text
+    return this.guardResponse().text
   }
 
   get responseTime(): number {
-    return this._response.responseTime
+    return this.guardResponse().responseTime
   }
 
   getBodyPath(jsonPath: string): unknown {
-    return JSONPath.query(this._response.body, jsonPath)[0]
+    return JSONPath.query(this.guardResponse().body, jsonPath)[0]
   }
 
   async dispose(): Promise<void> {

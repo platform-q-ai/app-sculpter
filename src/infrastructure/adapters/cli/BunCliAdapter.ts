@@ -5,13 +5,20 @@ import type { CommandResult } from '../../../domain/entities/index.ts'
 export class BunCliAdapter implements CliPort {
   private env: Record<string, string> = {}
   private workingDir: string
-  private _result!: CommandResult
+  private _result?: CommandResult
 
   constructor(readonly config: CliAdapterConfig) {
     this.workingDir = config.workingDir ?? process.cwd()
     if (config.env) {
       Object.assign(this.env, config.env)
     }
+  }
+
+  private guardResult(): CommandResult {
+    if (!this._result) {
+      throw new Error('No command has been run yet. Call run() before accessing results.')
+    }
+    return this._result
   }
 
   setEnv(name: string, value: string): this {
@@ -35,6 +42,11 @@ export class BunCliAdapter implements CliPort {
   }
 
   async run(command: string): Promise<CommandResult> {
+    const timeoutMs = this.config.timeout
+    if (timeoutMs != null) {
+      return this.runWithTimeout(command, timeoutMs)
+    }
+
     const startTime = Date.now()
 
     const proc = Bun.spawn(['sh', '-c', command], {
@@ -140,27 +152,28 @@ export class BunCliAdapter implements CliPort {
   }
 
   get result(): CommandResult {
-    return this._result
+    return this.guardResult()
   }
 
   get stdout(): string {
-    return this._result.stdout
+    return this.guardResult().stdout
   }
 
   get stderr(): string {
-    return this._result.stderr
+    return this.guardResult().stderr
   }
 
   get exitCode(): number {
-    return this._result.exitCode
+    return this.guardResult().exitCode
   }
 
   get duration(): number {
-    return this._result.duration
+    return this.guardResult().duration
   }
 
   stdoutLine(lineNumber: number): string {
-    const lines = this._result.stdout.split('\n')
+    const r = this.guardResult()
+    const lines = r.stdout.split('\n')
     if (lineNumber < 1 || lineNumber > lines.length) {
       throw new Error(`Line ${lineNumber} does not exist (stdout has ${lines.length} lines)`)
     }
@@ -168,7 +181,7 @@ export class BunCliAdapter implements CliPort {
   }
 
   stdoutMatching(pattern: RegExp): string | null {
-    const match = this._result.stdout.match(pattern)
+    const match = this.guardResult().stdout.match(pattern)
     return match ? (match[1] ?? match[0]) : null
   }
 

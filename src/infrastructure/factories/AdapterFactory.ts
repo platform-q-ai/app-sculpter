@@ -1,59 +1,69 @@
 import type { ExternBddConfig } from '../../application/config/index.ts'
-import type { HttpPort, BrowserPort, CliPort, GraphPort, SecurityPort } from '../../application/ports/index.ts'
+import type { Adapters } from '../../application/ports/Adapters.ts'
 import { PlaywrightHttpAdapter } from '../adapters/http/PlaywrightHttpAdapter.ts'
 import { PlaywrightBrowserAdapter } from '../adapters/browser/PlaywrightBrowserAdapter.ts'
 import { BunCliAdapter } from '../adapters/cli/BunCliAdapter.ts'
 import { Neo4jGraphAdapter } from '../adapters/graph/Neo4jGraphAdapter.ts'
 import { ZapSecurityAdapter } from '../adapters/security/ZapSecurityAdapter.ts'
 
-export interface Adapters {
-  http?: HttpPort
-  browser?: BrowserPort
-  cli?: CliPort
-  graph?: GraphPort
-  security?: SecurityPort
+// Re-export the Adapters interface from the application layer
+export type { Adapters } from '../../application/ports/Adapters.ts'
+
+interface Disposable {
   dispose(): Promise<void>
 }
 
 export async function createAdapters(config: ExternBddConfig): Promise<Adapters> {
-  const adapters: Partial<Adapters> = {}
+  const created: Disposable[] = []
 
-  if (config.adapters.http) {
-    const http = new PlaywrightHttpAdapter(config.adapters.http)
-    await http.initialize()
-    adapters.http = http
+  try {
+    let http: PlaywrightHttpAdapter | undefined
+    let browser: PlaywrightBrowserAdapter | undefined
+    let cli: BunCliAdapter | undefined
+    let graph: Neo4jGraphAdapter | undefined
+    let security: ZapSecurityAdapter | undefined
+
+    if (config.adapters.http) {
+      http = new PlaywrightHttpAdapter(config.adapters.http)
+      await http.initialize()
+      created.push(http)
+    }
+
+    if (config.adapters.browser) {
+      browser = new PlaywrightBrowserAdapter(config.adapters.browser)
+      await browser.initialize()
+      created.push(browser)
+    }
+
+    if (config.adapters.cli) {
+      cli = new BunCliAdapter(config.adapters.cli)
+      created.push(cli)
+    }
+
+    if (config.adapters.graph) {
+      graph = new Neo4jGraphAdapter(config.adapters.graph)
+      await graph.connect()
+      created.push(graph)
+    }
+
+    if (config.adapters.security) {
+      security = new ZapSecurityAdapter(config.adapters.security)
+      created.push(security)
+    }
+
+    return {
+      http,
+      browser,
+      cli,
+      graph,
+      security,
+      async dispose() {
+        await Promise.allSettled(created.map((a) => a.dispose()))
+      },
+    }
+  } catch (error) {
+    // Clean up any adapters that were successfully created before the failure
+    await Promise.allSettled(created.map((a) => a.dispose()))
+    throw error
   }
-
-  if (config.adapters.browser) {
-    const browser = new PlaywrightBrowserAdapter(config.adapters.browser)
-    await browser.initialize()
-    adapters.browser = browser
-  }
-
-  if (config.adapters.cli) {
-    adapters.cli = new BunCliAdapter(config.adapters.cli)
-  }
-
-  if (config.adapters.graph) {
-    const graph = new Neo4jGraphAdapter(config.adapters.graph)
-    await graph.connect()
-    adapters.graph = graph
-  }
-
-  if (config.adapters.security) {
-    adapters.security = new ZapSecurityAdapter(config.adapters.security)
-  }
-
-  return {
-    ...adapters,
-    async dispose() {
-      await Promise.all([
-        adapters.http?.dispose(),
-        adapters.browser?.dispose(),
-        adapters.cli?.dispose(),
-        adapters.graph?.dispose(),
-        adapters.security?.dispose(),
-      ])
-    },
-  } as Adapters
 }

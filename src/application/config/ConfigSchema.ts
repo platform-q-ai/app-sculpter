@@ -47,4 +47,6 @@ export interface SecurityAdapterConfig {
   zapApiKey?: string
   /** Polling interval in ms for scan loops. Defaults to 1000–2000 depending on scan type. Set to 0 in tests. */
   pollDelayMs?: number
+  /** Maximum time in ms to wait for a scan to complete. Defaults to 300000 (5 minutes). */
+  scanTimeout?: number
 }
