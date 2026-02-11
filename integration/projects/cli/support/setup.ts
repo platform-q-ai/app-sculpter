@@ -3,9 +3,6 @@ import { loadConfig, createAdapters, TestWorld } from '../../../../src/index.ts'
 import type { Adapters } from '../../../../src/index.ts'
 import { resolve } from 'node:path'
 
-// Tagged hooks for adapter validation
-import '../../../../src/interface/hooks/tagged.ts'
-
 // CLI step definitions
 import '../../../../src/interface/steps/cli/index.ts'
 

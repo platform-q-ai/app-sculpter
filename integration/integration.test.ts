@@ -10,7 +10,7 @@ interface ProjectResult {
 }
 
 function runProject(project: string, ...extraArgs: string[]): ProjectResult {
-  const configPath = resolve(ROOT, `integration/projects/${project}/cucumber.yml`)
+  const configPath = `integration/projects/${project}/cucumber.yml`
   const proc = Bun.spawnSync(
     ['bun', 'node_modules/.bin/cucumber-js', '--config', configPath, ...extraArgs],
     { cwd: ROOT, stdout: 'pipe', stderr: 'pipe', env: { ...process.env } }

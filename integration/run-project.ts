@@ -7,7 +7,7 @@ if (!project) {
 }
 
 const root = resolve(import.meta.dir, '..')
-const configPath = resolve(root, `integration/projects/${project}/cucumber.yml`)
+const configPath = `integration/projects/${project}/cucumber.yml`
 
 const proc = Bun.spawn(
   ['bun', 'node_modules/.bin/cucumber-js', '--config', configPath, ...rest],
