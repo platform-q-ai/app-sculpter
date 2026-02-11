@@ -14,10 +14,12 @@ export class ZapSecurityAdapter implements SecurityPort {
   private _alerts: SecurityAlert[] = []
   private readonly baseUrl: string
   private readonly apiKey: string
+  private readonly pollDelayMs: number
 
   constructor(readonly config: SecurityAdapterConfig) {
     this.baseUrl = config.zapUrl.replace(/\/$/, '')
     this.apiKey = config.zapApiKey ?? ''
+    this.pollDelayMs = config.pollDelayMs ?? -1 // -1 = use per-method defaults
   }
 
   private async zapRequest<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
@@ -50,7 +52,8 @@ export class ZapSecurityAdapter implements SecurityPort {
       )
       progress = parseInt(statusResult.status, 10)
       if (progress < 100) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const delay = this.pollDelayMs >= 0 ? this.pollDelayMs : 1000
+        await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
 
@@ -75,7 +78,8 @@ export class ZapSecurityAdapter implements SecurityPort {
       )
       status = statusResult.status
       if (status === 'running') {
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        const delay = this.pollDelayMs >= 0 ? this.pollDelayMs : 2000
+        await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
 
@@ -105,7 +109,8 @@ export class ZapSecurityAdapter implements SecurityPort {
       )
       progress = parseInt(statusResult.status, 10)
       if (progress < 100) {
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        const delay = this.pollDelayMs >= 0 ? this.pollDelayMs : 2000
+        await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
 
@@ -129,7 +134,8 @@ export class ZapSecurityAdapter implements SecurityPort {
       )
       recordsRemaining = parseInt(result.recordsToScan, 10)
       if (recordsRemaining > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const delay = this.pollDelayMs >= 0 ? this.pollDelayMs : 1000
+        await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
 

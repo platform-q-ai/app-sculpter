@@ -40,6 +40,41 @@ describe('VariableService', () => {
     expect(service.has('a')).toBe(false)
     expect(service.has('b')).toBe(false)
   })
+
+  test('set overwrites existing variable', () => {
+    const service = new VariableService()
+    service.set('key', 'first')
+    service.set('key', 'second')
+    expect(service.get<string>('key')).toBe('second')
+  })
+
+  test('get with complex object value', () => {
+    const service = new VariableService()
+    const obj = { nested: { deep: [1, 2, 3] } }
+    service.set('complex', obj)
+    expect(service.get<typeof obj>('complex')).toEqual(obj)
+  })
+
+  test('get with null value', () => {
+    const service = new VariableService()
+    service.set('nullable', null)
+    expect(service.get('nullable')).toBeNull()
+  })
+
+  test('get with undefined value', () => {
+    const service = new VariableService()
+    service.set('undef', undefined)
+    expect(service.get('undef')).toBeUndefined()
+  })
+
+  test('has returns true after set, false after clear', () => {
+    const service = new VariableService()
+    expect(service.has('lifecycle')).toBe(false)
+    service.set('lifecycle', 'value')
+    expect(service.has('lifecycle')).toBe(true)
+    service.clear()
+    expect(service.has('lifecycle')).toBe(false)
+  })
 })
 
 describe('InterpolationService', () => {
@@ -96,5 +131,67 @@ describe('InterpolationService', () => {
     const vars = new VariableService()
     const service = new InterpolationService(vars)
     expect(() => service.interpolate('${unknown}')).toThrow(VariableNotFoundError)
+  })
+
+  test('interpolates timestamp_ms as millisecond timestamp', () => {
+    const vars = new VariableService()
+    const service = new InterpolationService(vars)
+    const before = Date.now()
+    const result = service.interpolate('${timestamp_ms}')
+    const after = Date.now()
+    const ms = Number(result)
+    expect(ms).toBeGreaterThanOrEqual(before)
+    expect(ms).toBeLessThanOrEqual(after)
+  })
+
+  test('interpolates iso_date as ISO 8601 string', () => {
+    const vars = new VariableService()
+    const service = new InterpolationService(vars)
+    const result = service.interpolate('${iso_date}')
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    expect(new Date(result).toISOString()).toBe(result)
+  })
+
+  test('interpolates random_int as number between 0-999999', () => {
+    const vars = new VariableService()
+    const service = new InterpolationService(vars)
+    const result = service.interpolate('${random_int}')
+    const num = Number(result)
+    expect(num).toBeGreaterThanOrEqual(0)
+    expect(num).toBeLessThan(1000000)
+    expect(Number.isInteger(num)).toBe(true)
+  })
+
+  test('handles adjacent variables', () => {
+    const vars = new VariableService()
+    vars.set('a', 'hello')
+    vars.set('b', 'world')
+    const service = new InterpolationService(vars)
+    expect(service.interpolate('${a}${b}')).toBe('helloworld')
+  })
+
+  test('handles variables in JSON strings', () => {
+    const vars = new VariableService()
+    vars.set('user_id', '42')
+    const service = new InterpolationService(vars)
+    const result = service.interpolate('{"id": "${user_id}"}')
+    expect(result).toBe('{"id": "42"}')
+  })
+
+  test('each call to uuid produces unique values', () => {
+    const vars = new VariableService()
+    const service = new InterpolationService(vars)
+    const uuid1 = service.interpolate('${uuid}')
+    const uuid2 = service.interpolate('${uuid}')
+    expect(uuid1).not.toBe(uuid2)
+  })
+
+  test('each call to random_string produces unique values', () => {
+    const vars = new VariableService()
+    const service = new InterpolationService(vars)
+    const str1 = service.interpolate('${random_string}')
+    const str2 = service.interpolate('${random_string}')
+    // Technically could collide but astronomically unlikely with 8 chars from 62-char alphabet
+    expect(str1).not.toBe(str2)
   })
 })
