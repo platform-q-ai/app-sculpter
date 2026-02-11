@@ -8,7 +8,7 @@ Feature: CLI Output Assertions
 
   Scenario: Assert stdout matches regex
     When I run "echo version 1.2.3"
-    Then stdout should match "version \\d+\\.\\d+\\.\\d+"
+    Then stdout should match "version \d+\.\d+\.\d+"
 
   Scenario: Assert stderr content
     When I run "echo error message >&2"
