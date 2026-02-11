@@ -1,6 +1,56 @@
+/**
+ * Browser step definition tests.
+ *
+ * These tests invoke the actual exported handler functions from the step
+ * definition files (navigation.steps, interactions.steps, assertions.steps)
+ * rather than duplicating handler logic inline.  The mock world objects
+ * satisfy the context interfaces at runtime because they have the same shape
+ * (cast via `as any` to bypass Playwright's full Page type at compile time).
+ *
+ * Exception: tests for "I should see" / "I should not see" keep inline mock
+ * wiring because the handlers rely on Playwright's expect(locator).toBeVisible()
+ * which requires a real browser page.
+ *
+ * The "Variable interpolation integration" section continues calling mock
+ * methods directly since those tests exercise the mock wiring, not handler
+ * logic.
+ */
+
 import { test, expect, describe, beforeEach, mock } from 'bun:test'
 import { VariableService } from '../../../src/application/services/VariableService.ts'
 import { InterpolationService } from '../../../src/application/services/InterpolationService.ts'
+
+// Mock Cucumber so the step-file-level Given/When/Then registrations are no-ops
+mock.module('@cucumber/cucumber', () => ({
+  Given: mock(),
+  When: mock(),
+  Then: mock(),
+  Before: mock(),
+  After: mock(),
+  BeforeAll: mock(),
+  AfterAll: mock(),
+  setWorldConstructor: mock(),
+  World: class MockWorld { constructor() {} },
+  Status: { FAILED: 'FAILED', PASSED: 'PASSED' },
+  default: {},
+}))
+
+// Mock @playwright/test so the assertion handlers use a working expect
+mock.module('@playwright/test', () => ({
+  expect,
+  default: {},
+}))
+
+// Dynamic imports after mocks so Cucumber registrations run harmlessly
+const { navigateTo, reloadPage, goBack } = await import(
+  '../../../src/interface/steps/browser/navigation.steps.ts'
+)
+const { clickSelector, fillField, selectOption, checkBox, waitForVisible, waitForHidden, waitForPageLoad, takeScreenshot } = await import(
+  '../../../src/interface/steps/browser/interactions.steps.ts'
+)
+const { assertUrl, assertUrlContains, assertPageTitle, assertPageTitleContains, assertSelectorContainsText, assertSelectorHasText, assertSelectorVisible, assertSelectorHidden, storeTextAs, storeUrlAs } = await import(
+  '../../../src/interface/steps/browser/assertions.steps.ts'
+)
 
 // ---------------------------------------------------------------------------
 // Helpers: mock world & mock browser adapter
@@ -106,9 +156,7 @@ describe('Browser step definitions – Navigation', () => {
 
   // 1. 'I navigate to' calls browser.goto
   test('I navigate to {string} calls browser.goto with interpolated path', async () => {
-    const path = '/users'
-
-    await world.browser.goto(world.interpolate(path))
+    await navigateTo(world as any, '/users')
 
     expect(world.browser.goto).toHaveBeenCalledTimes(1)
     expect(world.browser.goto).toHaveBeenCalledWith('/users')
@@ -116,9 +164,7 @@ describe('Browser step definitions – Navigation', () => {
 
   // 2. 'I am on' calls browser.goto (alias)
   test('I am on {string} calls browser.goto (alias for navigate)', async () => {
-    const path = '/home'
-
-    await world.browser.goto(world.interpolate(path))
+    await navigateTo(world as any, '/home')
 
     expect(world.browser.goto).toHaveBeenCalledTimes(1)
     expect(world.browser.goto).toHaveBeenCalledWith('/home')
@@ -126,21 +172,21 @@ describe('Browser step definitions – Navigation', () => {
 
   // 3. 'I reload the page' calls browser.reload
   test('I reload the page calls browser.reload', async () => {
-    await world.browser.reload()
+    await reloadPage(world as any)
 
     expect(world.browser.reload).toHaveBeenCalledTimes(1)
   })
 
   // 4. 'I go back' calls browser.goBack
   test('I go back calls browser.goBack', async () => {
-    await world.browser.goBack()
+    await goBack(world as any)
 
     expect(world.browser.goBack).toHaveBeenCalledTimes(1)
   })
 
   // 5. 'I wait for the page to load' calls waitForLoadState('load')
   test('I wait for the page to load calls browser.waitForLoadState with load', async () => {
-    await world.browser.waitForLoadState('load')
+    await waitForPageLoad(world as any)
 
     expect(world.browser.waitForLoadState).toHaveBeenCalledTimes(1)
     expect(world.browser.waitForLoadState).toHaveBeenCalledWith('load')
@@ -156,9 +202,7 @@ describe('Browser step definitions – Interactions', () => {
 
   // 6. 'I click' calls browser.click
   test('I click {string} calls browser.click with interpolated selector', async () => {
-    const selector = '#submit-btn'
-
-    await world.browser.click(world.interpolate(selector))
+    await clickSelector(world as any, '#submit-btn')
 
     expect(world.browser.click).toHaveBeenCalledTimes(1)
     expect(world.browser.click).toHaveBeenCalledWith('#submit-btn')
@@ -166,10 +210,7 @@ describe('Browser step definitions – Interactions', () => {
 
   // 7. 'I fill with' calls browser.fill
   test('I fill {string} with {string} calls browser.fill', async () => {
-    const selector = '#username'
-    const value = 'alice'
-
-    await world.browser.fill(world.interpolate(selector), world.interpolate(value))
+    await fillField(world as any, '#username', 'alice')
 
     expect(world.browser.fill).toHaveBeenCalledTimes(1)
     expect(world.browser.fill).toHaveBeenCalledWith('#username', 'alice')
@@ -177,10 +218,7 @@ describe('Browser step definitions – Interactions', () => {
 
   // 8. 'I select from' calls browser.selectOption
   test('I select {string} from {string} calls browser.selectOption', async () => {
-    const value = 'admin'
-    const selector = '#role'
-
-    await world.browser.selectOption(world.interpolate(selector), world.interpolate(value))
+    await selectOption(world as any, 'admin', '#role')
 
     expect(world.browser.selectOption).toHaveBeenCalledTimes(1)
     expect(world.browser.selectOption).toHaveBeenCalledWith('#role', 'admin')
@@ -188,9 +226,7 @@ describe('Browser step definitions – Interactions', () => {
 
   // 9. 'I check' calls browser.check
   test('I check {string} calls browser.check', async () => {
-    const selector = '#agree-terms'
-
-    await world.browser.check(world.interpolate(selector))
+    await checkBox(world as any, '#agree-terms')
 
     expect(world.browser.check).toHaveBeenCalledTimes(1)
     expect(world.browser.check).toHaveBeenCalledWith('#agree-terms')
@@ -198,9 +234,7 @@ describe('Browser step definitions – Interactions', () => {
 
   // 10. 'I wait for to be visible' passes state:visible
   test('I wait for {string} to be visible calls waitForSelector with state visible', async () => {
-    const selector = '.loading-spinner'
-
-    await world.browser.waitForSelector(world.interpolate(selector), { state: 'visible' })
+    await waitForVisible(world as any, '.loading-spinner')
 
     expect(world.browser.waitForSelector).toHaveBeenCalledTimes(1)
     expect(world.browser.waitForSelector).toHaveBeenCalledWith('.loading-spinner', {
@@ -210,9 +244,7 @@ describe('Browser step definitions – Interactions', () => {
 
   // 11. 'I wait for to be hidden' passes state:hidden
   test('I wait for {string} to be hidden calls waitForSelector with state hidden', async () => {
-    const selector = '.loading-spinner'
-
-    await world.browser.waitForSelector(world.interpolate(selector), { state: 'hidden' })
+    await waitForHidden(world as any, '.loading-spinner')
 
     expect(world.browser.waitForSelector).toHaveBeenCalledTimes(1)
     expect(world.browser.waitForSelector).toHaveBeenCalledWith('.loading-spinner', {
@@ -222,8 +254,7 @@ describe('Browser step definitions – Interactions', () => {
 
   // 12. 'I take a screenshot' calls browser.screenshot and attach
   test('I take a screenshot calls browser.screenshot and attach', async () => {
-    const screenshot = await world.browser.screenshot()
-    world.attach(screenshot, 'image/png')
+    await takeScreenshot(world as any)
 
     expect(world.browser.screenshot).toHaveBeenCalledTimes(1)
     expect(world.attach).toHaveBeenCalledTimes(1)
@@ -242,40 +273,36 @@ describe('Browser step definitions – Assertions', () => {
   test('the URL should be {string} passes for exact match', () => {
     world.browser.url = mock(() => 'http://localhost:3000/dashboard')
 
-    const actualUrl = world.browser.url()
-    expect(actualUrl).toBe(world.interpolate('http://localhost:3000/dashboard'))
+    assertUrl(world as any, 'http://localhost:3000/dashboard')
   })
 
   // 14. 'the URL should contain' passes for substring
   test('the URL should contain {string} passes for substring', () => {
     world.browser.url = mock(() => 'http://localhost:3000/dashboard?tab=settings')
 
-    const actualUrl = world.browser.url()
-    expect(actualUrl).toContain(world.interpolate('dashboard'))
+    assertUrlContains(world as any, 'dashboard')
   })
 
   // 15. 'the page title should be' passes for exact match
   test('the page title should be {string} passes for exact match', async () => {
     world.browser.title = mock(() => Promise.resolve('My Dashboard'))
 
-    const title = await world.browser.title()
-    expect(title).toBe(world.interpolate('My Dashboard'))
+    await assertPageTitle(world as any, 'My Dashboard')
   })
 
   // 16. 'the page title should contain' passes for substring
   test('the page title should contain {string} passes for substring', async () => {
     world.browser.title = mock(() => Promise.resolve('My Dashboard - Admin'))
 
-    const title = await world.browser.title()
-    expect(title).toContain(world.interpolate('Dashboard'))
+    await assertPageTitleContains(world as any, 'Dashboard')
   })
 
   // 17. 'I should see' passes when visible (mocks page.getByText -> locator.first())
+  // Tests the mock wiring — handler uses Playwright expect which requires a real browser
   test('I should see {string} passes when text is visible', () => {
     const text = 'Welcome back'
     const interpolatedText = world.interpolate(text)
 
-    // Simulate the step logic: page.getByText(text).first() must be "visible"
     const mockLocatorFirst = { _isVisible: true }
     world.browser.page.getByText = mock((_t: string) => ({
       first: () => mockLocatorFirst,
@@ -292,6 +319,7 @@ describe('Browser step definitions – Assertions', () => {
   })
 
   // 18. 'I should not see' passes when not visible
+  // Tests the mock wiring — handler uses Playwright expect which requires a real browser
   test('I should not see {string} passes when text is not visible', () => {
     const text = 'Secret data'
     const interpolatedText = world.interpolate(text)
@@ -315,10 +343,8 @@ describe('Browser step definitions – Assertions', () => {
       Promise.resolve('Hello World, how are you?' as string | null),
     )
 
-    const selector = '.greeting'
-    const text = await world.browser.textContent(world.interpolate(selector))
+    await assertSelectorContainsText(world as any, '.greeting', 'Hello World')
 
-    expect(text).toContain(world.interpolate('Hello World'))
     expect(world.browser.textContent).toHaveBeenCalledWith('.greeting')
   })
 
@@ -328,10 +354,8 @@ describe('Browser step definitions – Assertions', () => {
       Promise.resolve('  Hello World  ' as string | null),
     )
 
-    const selector = '#title'
-    const text = await world.browser.textContent(world.interpolate(selector))
+    await assertSelectorHasText(world as any, '#title', 'Hello World')
 
-    expect(text?.trim()).toBe(world.interpolate('Hello World'))
     expect(world.browser.textContent).toHaveBeenCalledWith('#title')
   })
 
@@ -339,10 +363,8 @@ describe('Browser step definitions – Assertions', () => {
   test('{string} should be visible passes when isVisible returns true', async () => {
     world.browser.isVisible = mock((_s: string) => Promise.resolve(true))
 
-    const selector = '#main-content'
-    const visible = await world.browser.isVisible(world.interpolate(selector))
+    await assertSelectorVisible(world as any, '#main-content')
 
-    expect(visible).toBe(true)
     expect(world.browser.isVisible).toHaveBeenCalledWith('#main-content')
   })
 
@@ -350,10 +372,8 @@ describe('Browser step definitions – Assertions', () => {
   test('{string} should be hidden passes when isVisible returns false', async () => {
     world.browser.isVisible = mock((_s: string) => Promise.resolve(false))
 
-    const selector = '.hidden-panel'
-    const visible = await world.browser.isVisible(world.interpolate(selector))
+    await assertSelectorHidden(world as any, '.hidden-panel')
 
-    expect(visible).toBe(false)
     expect(world.browser.isVisible).toHaveBeenCalledWith('.hidden-panel')
   })
 
@@ -363,11 +383,7 @@ describe('Browser step definitions – Assertions', () => {
       Promise.resolve('Product ABC' as string | null),
     )
 
-    const selector = '.product-name'
-    const variableName = 'productName'
-
-    const text = await world.browser.textContent(world.interpolate(selector))
-    world.setVariable(variableName, text)
+    await storeTextAs(world as any, '.product-name', 'productName')
 
     expect(world.browser.textContent).toHaveBeenCalledWith('.product-name')
     expect(world.getVariable<string>('productName')).toBe('Product ABC')
@@ -377,8 +393,7 @@ describe('Browser step definitions – Assertions', () => {
   test('I store the URL as {string} stores the current URL', () => {
     world.browser.url = mock(() => 'http://localhost:3000/products/42')
 
-    const variableName = 'currentUrl'
-    world.setVariable(variableName, world.browser.url())
+    storeUrlAs(world as any, 'currentUrl')
 
     expect(world.getVariable<string>('currentUrl')).toBe('http://localhost:3000/products/42')
   })

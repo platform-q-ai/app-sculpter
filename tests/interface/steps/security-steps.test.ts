@@ -9,13 +9,57 @@ import type {
   HeaderCheckResult,
   SslCheckResult,
 } from '../../../src/domain/entities/index.ts'
+import type { SecurityAdapterConfig } from '../../../src/application/config/index.ts'
+
+// Mock Cucumber so the step-file-level Given/When/Then registrations are no-ops
+mock.module('@cucumber/cucumber', () => ({
+  Given: mock(),
+  When: mock(),
+  Then: mock(),
+  Before: mock(),
+  After: mock(),
+  BeforeAll: mock(),
+  AfterAll: mock(),
+  setWorldConstructor: mock(),
+  World: class MockWorld { constructor() {} },
+  Status: { FAILED: 'FAILED', PASSED: 'PASSED' },
+  default: {},
+}))
+
+// Mock @playwright/test so assertion handlers use a working expect
+mock.module('@playwright/test', () => ({
+  expect,
+  default: {},
+}))
+
+// Dynamic imports after mocks so Cucumber registrations run harmlessly
+const {
+  newZapSession,
+  spiderUrl,
+  runActiveScan,
+  runPassiveScan,
+  checkSecurityHeaders,
+  checkSslCertificate,
+  saveSecurityReportHtml,
+} = await import('../../../src/interface/steps/security/scanning.steps.ts')
+const {
+  assertNoHighRiskAlerts,
+  assertNoMediumOrHigherAlerts,
+  assertAlertCount,
+  assertAlertsLessThan,
+  assertSecurityHeaderPresent,
+  assertCspPresent,
+  assertSslCertificateValid,
+  assertSpiderMinUrls,
+  storeAlerts,
+} = await import('../../../src/interface/steps/security/assertions.steps.ts')
 
 /**
  * Tests for security step definition logic (scanning, assertions).
  *
- * We do NOT import the step definition files (they register with Cucumber).
- * Instead, we create a mock world with a mock SecurityPort and replicate
- * the handler logic inline per test.
+ * These tests import and invoke the actual exported handler functions from
+ * the refactored step definition files, passing a mock world that satisfies
+ * the context interfaces.
  */
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,7 +124,7 @@ interface MockSecurityPort {
   getAlertsByConfidence: ReturnType<typeof mock>
   getAlertsByType: ReturnType<typeof mock>
   dispose: ReturnType<typeof mock>
-  config: Record<string, unknown>
+  config: SecurityAdapterConfig
   alerts: SecurityAlert[]
   alertCount: number
 }
@@ -103,7 +147,7 @@ function createMockWorld() {
     getAlertsByConfidence: mock(() => [] as SecurityAlert[]),
     getAlertsByType: mock(() => [] as SecurityAlert[]),
     dispose: mock(() => Promise.resolve()),
-    config: {},
+    config: { zapUrl: 'http://localhost:8080' },
     alerts: [],
     alertCount: 0,
   }
@@ -136,8 +180,7 @@ describe('Security Steps', () => {
   describe('Scanning Steps', () => {
     // ── Test 1: 'a new ZAP session' calls security.newSession ──────────────
     test('a new ZAP session calls security.newSession', async () => {
-      // Step logic: Given a new ZAP session
-      await world.security.newSession()
+      await newZapSession(world)
 
       expect(world.security.newSession).toHaveBeenCalledTimes(1)
     })
@@ -147,10 +190,7 @@ describe('Security Steps', () => {
       const spiderResult = makeSpiderResult({ urlsFound: 25 })
       world.security.spider.mockResolvedValueOnce(spiderResult)
 
-      // Step logic: When I spider {string}
-      const url = 'https://example.com'
-      const result = await world.security.spider(world.interpolate(url))
-      world.setVariable('_spiderResult', result)
+      await spiderUrl(world, 'https://example.com')
 
       expect(world.security.spider).toHaveBeenCalledWith('https://example.com')
     })
@@ -160,10 +200,7 @@ describe('Security Steps', () => {
       const spiderResult = makeSpiderResult({ urlsFound: 15, duration: 3000 })
       world.security.spider.mockResolvedValueOnce(spiderResult)
 
-      // Step logic
-      const url = 'https://example.com'
-      const result = await world.security.spider(world.interpolate(url))
-      world.setVariable('_spiderResult', result)
+      await spiderUrl(world, 'https://example.com')
 
       const stored = world.getVariable<SpiderResult>('_spiderResult')
       expect(stored.urlsFound).toBe(15)
@@ -175,10 +212,7 @@ describe('Security Steps', () => {
       const scanResult = makeScanResult({ alertCount: 3 })
       world.security.activeScan.mockResolvedValueOnce(scanResult)
 
-      // Step logic: When I run an active scan on {string}
-      const url = 'https://example.com'
-      const result = await world.security.activeScan(world.interpolate(url))
-      world.setVariable('_scanResult', result)
+      await runActiveScan(world, 'https://example.com')
 
       expect(world.security.activeScan).toHaveBeenCalledWith('https://example.com')
     })
@@ -188,10 +222,7 @@ describe('Security Steps', () => {
       const scanResult = makeScanResult({ alertCount: 7, duration: 5000 })
       world.security.activeScan.mockResolvedValueOnce(scanResult)
 
-      // Step logic
-      const url = 'https://example.com'
-      const result = await world.security.activeScan(world.interpolate(url))
-      world.setVariable('_scanResult', result)
+      await runActiveScan(world, 'https://example.com')
 
       const stored = world.getVariable<ScanResult>('_scanResult')
       expect(stored.alertCount).toBe(7)
@@ -203,10 +234,7 @@ describe('Security Steps', () => {
       const scanResult = makeScanResult({ alertCount: 1 })
       world.security.passiveScan.mockResolvedValueOnce(scanResult)
 
-      // Step logic: When I run a passive scan on {string}
-      const url = 'https://example.com/api'
-      const result = await world.security.passiveScan(world.interpolate(url))
-      world.setVariable('_scanResult', result)
+      await runPassiveScan(world, 'https://example.com/api')
 
       expect(world.security.passiveScan).toHaveBeenCalledWith('https://example.com/api')
     })
@@ -219,10 +247,7 @@ describe('Security Steps', () => {
       })
       world.security.checkSecurityHeaders.mockResolvedValueOnce(headerResult)
 
-      // Step logic: When I check {string} for security headers
-      const url = 'https://example.com'
-      const result = await world.security.checkSecurityHeaders(world.interpolate(url))
-      world.setVariable('_headerCheckResult', result)
+      await checkSecurityHeaders(world, 'https://example.com')
 
       expect(world.security.checkSecurityHeaders).toHaveBeenCalledWith('https://example.com')
     })
@@ -232,19 +257,14 @@ describe('Security Steps', () => {
       const sslResult = makeSslCheckResult({ valid: true })
       world.security.checkSslCertificate.mockResolvedValueOnce(sslResult)
 
-      // Step logic: When I check SSL certificate for {string}
-      const url = 'https://example.com'
-      const result = await world.security.checkSslCertificate(world.interpolate(url))
-      world.setVariable('_sslCheckResult', result)
+      await checkSslCertificate(world, 'https://example.com')
 
       expect(world.security.checkSslCertificate).toHaveBeenCalledWith('https://example.com')
     })
 
     // ── Test 9: 'I save the security report to' calls generateHtmlReport ───
     test('I save the security report to calls generateHtmlReport', async () => {
-      // Step logic: When I save the security report to {string}
-      const outputPath = '/tmp/report.html'
-      await world.security.generateHtmlReport(world.interpolate(outputPath))
+      await saveSecurityReportHtml(world, '/tmp/report.html')
 
       expect(world.security.generateHtmlReport).toHaveBeenCalledWith('/tmp/report.html')
     })
@@ -259,10 +279,7 @@ describe('Security Steps', () => {
     test('no high risk alerts should be found passes when none', () => {
       world.security.getAlertsByRisk.mockReturnValueOnce([])
 
-      // Step logic: Then no high risk alerts should be found
-      const alerts = world.security.getAlertsByRisk('High')
-
-      expect(alerts).toHaveLength(0)
+      assertNoHighRiskAlerts(world)
     })
 
     // ── Test 11: 'no high risk alerts' fails when found ────────────────────
@@ -270,11 +287,8 @@ describe('Security Steps', () => {
       const highAlerts = [makeAlert({ risk: 'High', name: 'SQL Injection' })]
       world.security.getAlertsByRisk.mockReturnValueOnce(highAlerts)
 
-      // Step logic
-      const alerts = world.security.getAlertsByRisk('High')
-
       expect(() => {
-        expect(alerts).toHaveLength(0)
+        assertNoHighRiskAlerts(world)
       }).toThrow()
     })
 
@@ -285,13 +299,7 @@ describe('Security Steps', () => {
         makeAlert({ risk: 'Informational' }),
       ]
 
-      // Step logic: Then no medium or higher risk alerts should be found
-      const allAlerts = world.security.alerts
-      const mediumOrHigher = allAlerts.filter((a) =>
-        RiskLevel.isAtLeast(a.risk, 'Medium'),
-      )
-
-      expect(mediumOrHigher).toHaveLength(0)
+      assertNoMediumOrHigherAlerts(world)
     })
 
     // ── Test 13: 'no medium or higher risk alerts' fails ───────────────────
@@ -301,14 +309,8 @@ describe('Security Steps', () => {
         makeAlert({ risk: 'Low' }),
       ]
 
-      // Step logic
-      const allAlerts = world.security.alerts
-      const mediumOrHigher = allAlerts.filter((a) =>
-        RiskLevel.isAtLeast(a.risk, 'Medium'),
-      )
-
       expect(() => {
-        expect(mediumOrHigher).toHaveLength(0)
+        assertNoMediumOrHigherAlerts(world)
       }).toThrow()
     })
 
@@ -316,18 +318,14 @@ describe('Security Steps', () => {
     test('there should be N alerts passes for exact count', () => {
       world.security.alertCount = 3
 
-      // Step logic: Then there should be {int} alerts
-      const expectedCount = 3
-      expect(world.security.alertCount).toBe(expectedCount)
+      assertAlertCount(world, 3)
     })
 
     // ── Test 15: 'there should be less than N alerts' passes ───────────────
     test('there should be less than N alerts passes when below threshold', () => {
       world.security.alertCount = 2
 
-      // Step logic: Then there should be less than {int} alerts
-      const maxAlerts = 5
-      expect(world.security.alertCount).toBeLessThan(maxAlerts)
+      assertAlertsLessThan(world, 5)
     })
 
     // ── Test 16: 'the security headers should include' passes ──────────────
@@ -338,11 +336,7 @@ describe('Security Steps', () => {
       })
       world.setVariable('_headerCheckResult', headerResult)
 
-      // Step logic: Then the security headers should include {string}
-      const headerName = 'X-Frame-Options'
-      const result = world.getVariable<HeaderCheckResult>('_headerCheckResult')
-
-      expect(result.headers[headerName]).toBeDefined()
+      assertSecurityHeaderPresent(world, 'X-Frame-Options')
     })
 
     // ── Test 17: 'the security headers should include' fails when missing ──
@@ -352,12 +346,8 @@ describe('Security Steps', () => {
       })
       world.setVariable('_headerCheckResult', headerResult)
 
-      // Step logic
-      const headerName = 'Content-Security-Policy'
-      const result = world.getVariable<HeaderCheckResult>('_headerCheckResult')
-
       expect(() => {
-        expect(result.headers[headerName]).toBeDefined()
+        assertSecurityHeaderPresent(world, 'Content-Security-Policy')
       }).toThrow()
     })
 
@@ -368,10 +358,7 @@ describe('Security Steps', () => {
       })
       world.setVariable('_headerCheckResult', headerResult)
 
-      // Step logic: Then Content-Security-Policy should be present
-      const result = world.getVariable<HeaderCheckResult>('_headerCheckResult')
-
-      expect(result.headers['Content-Security-Policy']).toBeDefined()
+      assertCspPresent(world)
     })
 
     // ── Test 19: 'the SSL certificate should be valid' passes ──────────────
@@ -379,10 +366,7 @@ describe('Security Steps', () => {
       const sslResult = makeSslCheckResult({ valid: true })
       world.setVariable('_sslCheckResult', sslResult)
 
-      // Step logic: Then the SSL certificate should be valid
-      const result = world.getVariable<SslCheckResult>('_sslCheckResult')
-
-      expect(result.valid).toBe(true)
+      assertSslCertificateValid(world)
     })
 
     // ── Test 20: 'the SSL certificate should be valid' fails ───────────────
@@ -390,11 +374,8 @@ describe('Security Steps', () => {
       const sslResult = makeSslCheckResult({ valid: false })
       world.setVariable('_sslCheckResult', sslResult)
 
-      // Step logic
-      const result = world.getVariable<SslCheckResult>('_sslCheckResult')
-
       expect(() => {
-        expect(result.valid).toBe(true)
+        assertSslCertificateValid(world)
       }).toThrow()
     })
 
@@ -403,11 +384,7 @@ describe('Security Steps', () => {
       const spiderResult = makeSpiderResult({ urlsFound: 20 })
       world.setVariable('_spiderResult', spiderResult)
 
-      // Step logic: Then the spider should find at least {int} URLs
-      const minUrls = 10
-      const result = world.getVariable<SpiderResult>('_spiderResult')
-
-      expect(result.urlsFound).toBeGreaterThanOrEqual(minUrls)
+      assertSpiderMinUrls(world, 10)
     })
 
     // ── Test 22: 'the spider should find at least N URLs' fails ────────────
@@ -415,12 +392,8 @@ describe('Security Steps', () => {
       const spiderResult = makeSpiderResult({ urlsFound: 3 })
       world.setVariable('_spiderResult', spiderResult)
 
-      // Step logic
-      const minUrls = 10
-      const result = world.getVariable<SpiderResult>('_spiderResult')
-
       expect(() => {
-        expect(result.urlsFound).toBeGreaterThanOrEqual(minUrls)
+        assertSpiderMinUrls(world, 10)
       }).toThrow()
     })
 
@@ -432,9 +405,7 @@ describe('Security Steps', () => {
       ]
       world.security.alerts = alerts
 
-      // Step logic: Then I store the alerts as {string}
-      const variableName = 'foundAlerts'
-      world.setVariable(variableName, world.security.alerts)
+      storeAlerts(world, 'foundAlerts')
 
       const stored = world.getVariable<SecurityAlert[]>('foundAlerts')
       expect(stored).toHaveLength(2)

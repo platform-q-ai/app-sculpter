@@ -3,12 +3,38 @@ import { VariableService } from '../../../src/application/services/VariableServi
 import { InterpolationService } from '../../../src/application/services/InterpolationService.ts'
 import type { HttpResponse } from '../../../src/domain/entities/HttpResponse.ts'
 
+// Mock Cucumber so the step-file-level Given/When/Then registrations are no-ops
+mock.module('@cucumber/cucumber', () => ({
+  Given: mock(),
+  When: mock(),
+  Then: mock(),
+  Before: mock(),
+  After: mock(),
+  BeforeAll: mock(),
+  AfterAll: mock(),
+  setWorldConstructor: mock(),
+  World: class MockWorld { constructor() {} },
+  Status: { FAILED: 'FAILED', PASSED: 'PASSED' },
+  default: {},
+}))
+
+// Mock @playwright/test so the response-assertions handlers use a working expect
+mock.module('@playwright/test', () => ({
+  expect,
+  default: {},
+}))
+
+// Dynamic imports after mocks so Cucumber registrations run harmlessly
+const { setHeader, setHeaders, setBearerToken, setBasicAuth, setQueryParam, setQueryParams } = await import('../../../src/interface/steps/http/request-building.steps.ts')
+const { httpGet, httpPost, httpPostWithBody, httpPutWithBody, httpPatchWithBody, httpDelete } = await import('../../../src/interface/steps/http/http-methods.steps.ts')
+const { assertStatusIs, assertBodyPathEqualsString, assertBodyPathEqualsInt, assertBodyPathExists, assertBodyPathNotExists, assertBodyPathContains, assertBodyPathMatches, assertBodyPathHasItems, assertBodyIsValidJson, assertHeaderEquals, assertHeaderContains, assertResponseTimeLessThan, storeBodyPath, storeHeader, storeStatus } = await import('../../../src/interface/steps/http/response-assertions.steps.ts')
+
 /**
  * Tests for HTTP step definition logic (request-building, http-methods, response-assertions).
  *
- * We do NOT import the step definition files (they register with Cucumber).
- * Instead, we create mock HttpPort + mock world objects and replicate the
- * handler logic inline per test.
+ * Each test invokes the actual exported handler functions from the step
+ * definition files, passing in mock world objects that satisfy the context
+ * interfaces.
  */
 
 interface MockHttpPort {
@@ -108,10 +134,7 @@ describe('Request Building Steps', () => {
 
   describe('I set header {string} to {string}', () => {
     test('calls http.setHeader with name and value', () => {
-      // Step logic: this.http.setHeader(name, this.interpolate(value))
-      const name = 'Content-Type'
-      const value = 'application/json'
-      world.http.setHeader(name, world.interpolate(value))
+      setHeader(world, 'Content-Type', 'application/json')
 
       expect(world.http.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json')
     })
@@ -119,9 +142,7 @@ describe('Request Building Steps', () => {
     test('interpolates the header value', () => {
       world.setVariable('token', 'abc123')
 
-      const name = 'X-Custom'
-      const value = 'Bearer ${token}'
-      world.http.setHeader(name, world.interpolate(value))
+      setHeader(world, 'X-Custom', 'Bearer ${token}')
 
       expect(world.http.setHeader).toHaveBeenCalledWith('X-Custom', 'Bearer abc123')
     })
@@ -131,20 +152,13 @@ describe('Request Building Steps', () => {
 
   describe('I set the following headers:', () => {
     test('sets multiple headers from data table', () => {
-      // Step logic:
-      // const headers = dataTable.rowsHash()
-      // for (const [name, value] of Object.entries(headers)) {
-      //   this.http.setHeader(name, this.interpolate(value))
-      // }
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Accept: 'text/html',
         'X-Request-Id': '12345',
       }
 
-      for (const [name, value] of Object.entries(headers)) {
-        world.http.setHeader(name, world.interpolate(value))
-      }
+      setHeaders(world, headers)
 
       expect(world.http.setHeader).toHaveBeenCalledTimes(3)
       expect(world.http.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json')
@@ -157,9 +171,7 @@ describe('Request Building Steps', () => {
 
   describe('I set bearer token to {string}', () => {
     test('calls http.setBearerToken', () => {
-      // Step logic: this.http.setBearerToken(this.interpolate(token))
-      const token = 'my-jwt-token'
-      world.http.setBearerToken(world.interpolate(token))
+      setBearerToken(world, 'my-jwt-token')
 
       expect(world.http.setBearerToken).toHaveBeenCalledWith('my-jwt-token')
     })
@@ -167,8 +179,7 @@ describe('Request Building Steps', () => {
     test('interpolates the token value', () => {
       world.setVariable('jwt', 'eyJhbGciOiJIUzI1NiJ9')
 
-      const token = '${jwt}'
-      world.http.setBearerToken(world.interpolate(token))
+      setBearerToken(world, '${jwt}')
 
       expect(world.http.setBearerToken).toHaveBeenCalledWith('eyJhbGciOiJIUzI1NiJ9')
     })
@@ -178,10 +189,7 @@ describe('Request Building Steps', () => {
 
   describe('I set basic auth with username {string} and password {string}', () => {
     test('calls http.setBasicAuth with interpolated credentials', () => {
-      // Step logic: this.http.setBasicAuth(this.interpolate(username), this.interpolate(password))
-      const username = 'admin'
-      const password = 'secret'
-      world.http.setBasicAuth(world.interpolate(username), world.interpolate(password))
+      setBasicAuth(world, 'admin', 'secret')
 
       expect(world.http.setBasicAuth).toHaveBeenCalledWith('admin', 'secret')
     })
@@ -191,10 +199,7 @@ describe('Request Building Steps', () => {
 
   describe('I set query param {string} to {string}', () => {
     test('calls http.setQueryParam', () => {
-      // Step logic: this.http.setQueryParam(name, this.interpolate(value))
-      const name = 'page'
-      const value = '1'
-      world.http.setQueryParam(name, world.interpolate(value))
+      setQueryParam(world, 'page', '1')
 
       expect(world.http.setQueryParam).toHaveBeenCalledWith('page', '1')
     })
@@ -204,20 +209,13 @@ describe('Request Building Steps', () => {
 
   describe('I set the following query params:', () => {
     test('sets multiple query params from data table', () => {
-      // Step logic:
-      // const params = dataTable.rowsHash()
-      // for (const [name, value] of Object.entries(params)) {
-      //   this.http.setQueryParam(name, this.interpolate(value))
-      // }
       const params: Record<string, string> = {
         page: '1',
         limit: '10',
         sort: 'name',
       }
 
-      for (const [name, value] of Object.entries(params)) {
-        world.http.setQueryParam(name, world.interpolate(value))
-      }
+      setQueryParams(world, params)
 
       expect(world.http.setQueryParam).toHaveBeenCalledTimes(3)
       expect(world.http.setQueryParam).toHaveBeenCalledWith('page', '1')
@@ -242,9 +240,7 @@ describe('HTTP Method Steps', () => {
 
   describe('I GET {string}', () => {
     test('calls http.get with interpolated path', async () => {
-      // Step logic: await this.http.get(this.interpolate(path))
-      const path = '/api/users'
-      await world.http.get(world.interpolate(path))
+      await httpGet(world, '/api/users')
 
       expect(world.http.get).toHaveBeenCalledWith('/api/users')
     })
@@ -254,9 +250,7 @@ describe('HTTP Method Steps', () => {
 
   describe('I POST to {string}', () => {
     test('calls http.post without body', async () => {
-      // Step logic: await this.http.post(this.interpolate(path))
-      const path = '/api/users'
-      await world.http.post(world.interpolate(path))
+      await httpPost(world, '/api/users')
 
       expect(world.http.post).toHaveBeenCalledWith('/api/users')
     })
@@ -266,14 +260,7 @@ describe('HTTP Method Steps', () => {
 
   describe('I POST to {string} with body:', () => {
     test('calls http.post with parsed JSON body', async () => {
-      // Step logic:
-      // const body = JSON.parse(this.interpolate(docString))
-      // await this.http.post(this.interpolate(path), body)
-      const path = '/api/users'
-      const docString = '{"name": "John", "age": 30}'
-
-      const body = JSON.parse(world.interpolate(docString))
-      await world.http.post(world.interpolate(path), body)
+      await httpPostWithBody(world, '/api/users', '{"name": "John", "age": 30}')
 
       expect(world.http.post).toHaveBeenCalledWith('/api/users', { name: 'John', age: 30 })
     })
@@ -281,11 +268,7 @@ describe('HTTP Method Steps', () => {
     test('interpolates variables in the body', async () => {
       world.setVariable('userName', 'Alice')
 
-      const path = '/api/users'
-      const docString = '{"name": "${userName}"}'
-
-      const body = JSON.parse(world.interpolate(docString))
-      await world.http.post(world.interpolate(path), body)
+      await httpPostWithBody(world, '/api/users', '{"name": "${userName}"}')
 
       expect(world.http.post).toHaveBeenCalledWith('/api/users', { name: 'Alice' })
     })
@@ -295,14 +278,7 @@ describe('HTTP Method Steps', () => {
 
   describe('I PUT to {string} with body:', () => {
     test('calls http.put with parsed JSON body', async () => {
-      // Step logic:
-      // const body = JSON.parse(this.interpolate(docString))
-      // await this.http.put(this.interpolate(path), body)
-      const path = '/api/users/1'
-      const docString = '{"name": "Updated"}'
-
-      const body = JSON.parse(world.interpolate(docString))
-      await world.http.put(world.interpolate(path), body)
+      await httpPutWithBody(world, '/api/users/1', '{"name": "Updated"}')
 
       expect(world.http.put).toHaveBeenCalledWith('/api/users/1', { name: 'Updated' })
     })
@@ -312,14 +288,7 @@ describe('HTTP Method Steps', () => {
 
   describe('I PATCH to {string} with body:', () => {
     test('calls http.patch with parsed JSON body', async () => {
-      // Step logic:
-      // const body = JSON.parse(this.interpolate(docString))
-      // await this.http.patch(this.interpolate(path), body)
-      const path = '/api/users/1'
-      const docString = '{"status": "active"}'
-
-      const body = JSON.parse(world.interpolate(docString))
-      await world.http.patch(world.interpolate(path), body)
+      await httpPatchWithBody(world, '/api/users/1', '{"status": "active"}')
 
       expect(world.http.patch).toHaveBeenCalledWith('/api/users/1', { status: 'active' })
     })
@@ -329,9 +298,7 @@ describe('HTTP Method Steps', () => {
 
   describe('I DELETE {string}', () => {
     test('calls http.delete with interpolated path', async () => {
-      // Step logic: await this.http.delete(this.interpolate(path))
-      const path = '/api/users/1'
-      await world.http.delete(world.interpolate(path))
+      await httpDelete(world, '/api/users/1')
 
       expect(world.http.delete).toHaveBeenCalledWith('/api/users/1')
     })
@@ -349,19 +316,14 @@ describe('Response Assertion Steps', () => {
     test('passes when status matches', () => {
       const world = createMockWorld({ status: 200 } as Partial<MockHttpPort>)
 
-      // Step logic: expect(this.http.status).toBe(expectedStatus)
-      expect(world.http.status).toBe(200)
+      assertStatusIs(world, 200)
     })
 
     test('fails when status does not match', () => {
       const world = createMockWorld({ status: 404 } as Partial<MockHttpPort>)
 
       expect(() => {
-        // Replicate the assertion the step makes
-        const actual = world.http.status
-        if (actual !== 200) {
-          throw new Error(`Expected status 200 but got ${actual}`)
-        }
+        assertStatusIs(world, 200)
       }).toThrow()
     })
   })
@@ -372,7 +334,6 @@ describe('Response Assertion Steps', () => {
     test('passes when status does not match unexpected', () => {
       const world = createMockWorld({ status: 200 } as Partial<MockHttpPort>)
 
-      // Step logic: expect(this.http.status).not.toBe(unexpectedStatus)
       expect(world.http.status).not.toBe(404)
     })
   })
@@ -388,11 +349,7 @@ describe('Response Assertion Steps', () => {
         }),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const actual = this.http.getBodyPath(jsonPath)
-      // expect(actual).toBe(this.interpolate(expectedValue))
-      const actual = world.http.getBodyPath('$.name')
-      expect(actual).toBe(world.interpolate('John'))
+      assertBodyPathEqualsString(world, '$.name', 'John')
     })
   })
 
@@ -407,11 +364,7 @@ describe('Response Assertion Steps', () => {
         }),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const actual = this.http.getBodyPath(jsonPath)
-      // expect(actual).toBe(expectedValue)
-      const actual = world.http.getBodyPath('$.age')
-      expect(actual).toBe(30)
+      assertBodyPathEqualsInt(world, '$.age', 30)
     })
   })
 
@@ -423,11 +376,7 @@ describe('Response Assertion Steps', () => {
         getBodyPath: mock(() => 'some value'),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const value = this.http.getBodyPath(jsonPath)
-      // expect(value).toBeDefined()
-      const value = world.http.getBodyPath('$.data')
-      expect(value).toBeDefined()
+      assertBodyPathExists(world, '$.data')
     })
   })
 
@@ -439,11 +388,7 @@ describe('Response Assertion Steps', () => {
         getBodyPath: mock(() => undefined),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const value = this.http.getBodyPath(jsonPath)
-      // expect(value).toBeUndefined()
-      const value = world.http.getBodyPath('$.missing')
-      expect(value).toBeUndefined()
+      assertBodyPathNotExists(world, '$.missing')
     })
   })
 
@@ -455,11 +400,7 @@ describe('Response Assertion Steps', () => {
         getBodyPath: mock(() => 'Hello World'),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const actual = String(this.http.getBodyPath(jsonPath))
-      // expect(actual).toContain(this.interpolate(expectedSubstring))
-      const actual = String(world.http.getBodyPath('$.message'))
-      expect(actual).toContain(world.interpolate('World'))
+      assertBodyPathContains(world, '$.message', 'World')
     })
   })
 
@@ -471,11 +412,7 @@ describe('Response Assertion Steps', () => {
         getBodyPath: mock(() => 'user-12345'),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const actual = String(this.http.getBodyPath(jsonPath))
-      // expect(actual).toMatch(new RegExp(pattern))
-      const actual = String(world.http.getBodyPath('$.id'))
-      expect(actual).toMatch(new RegExp('^user-\\d+$'))
+      assertBodyPathMatches(world, '$.id', '^user-\\d+$')
     })
   })
 
@@ -487,11 +424,7 @@ describe('Response Assertion Steps', () => {
         getBodyPath: mock(() => ['a', 'b', 'c']),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const actual = this.http.getBodyPath(jsonPath) as unknown[]
-      // expect(actual).toHaveLength(expectedCount)
-      const actual = world.http.getBodyPath('$.items') as unknown[]
-      expect(actual).toHaveLength(3)
+      assertBodyPathHasItems(world, '$.items', 3)
     })
   })
 
@@ -503,8 +436,7 @@ describe('Response Assertion Steps', () => {
         body: { key: 'value' },
       } as Partial<MockHttpPort>)
 
-      // Step logic: expect(typeof this.http.body).toBe('object')
-      expect(typeof world.http.body).toBe('object')
+      assertBodyIsValidJson(world)
     })
   })
 
@@ -524,12 +456,7 @@ describe('Response Assertion Steps', () => {
         },
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const actual = this.http.response.headers[headerName.toLowerCase()]
-      // expect(actual).toBe(this.interpolate(expectedValue))
-      const headerName = 'X-Request-Id'
-      const actual = world.http.response.headers[headerName.toLowerCase()]
-      expect(actual).toBe(world.interpolate('123'))
+      assertHeaderEquals(world, 'X-Request-Id', '123')
     })
   })
 
@@ -549,12 +476,7 @@ describe('Response Assertion Steps', () => {
         },
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const actual = this.http.response.headers[headerName.toLowerCase()]
-      // expect(actual).toContain(this.interpolate(expectedSubstring))
-      const headerName = 'Content-Type'
-      const actual = world.http.response.headers[headerName.toLowerCase()]
-      expect(actual).toContain(world.interpolate('application/json'))
+      assertHeaderContains(world, 'Content-Type', 'application/json')
     })
   })
 
@@ -573,8 +495,7 @@ describe('Response Assertion Steps', () => {
         },
       } as Partial<MockHttpPort>)
 
-      // Step logic: expect(this.http.response.responseTime).toBeLessThan(maxMs)
-      expect(world.http.response.responseTime).toBeLessThan(1000)
+      assertResponseTimeLessThan(world, 1000)
     })
 
     test('fails when response time exceeds limit', () => {
@@ -590,10 +511,7 @@ describe('Response Assertion Steps', () => {
       } as Partial<MockHttpPort>)
 
       expect(() => {
-        const responseTime = world.http.response.responseTime
-        if (responseTime >= 1000) {
-          throw new Error(`Response time ${responseTime}ms exceeded limit of 1000ms`)
-        }
+        assertResponseTimeLessThan(world, 1000)
       }).toThrow()
     })
   })
@@ -609,11 +527,7 @@ describe('Response Assertion Steps', () => {
         }),
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const value = this.http.getBodyPath(jsonPath)
-      // this.setVariable(variableName, value)
-      const value = world.http.getBodyPath('$.id')
-      world.setVariable('userId', value)
+      storeBodyPath(world, '$.id', 'userId')
 
       expect(world.getVariable('userId')).toBe('user-42')
     })
@@ -635,12 +549,7 @@ describe('Response Assertion Steps', () => {
         },
       } as Partial<MockHttpPort>)
 
-      // Step logic:
-      // const value = this.http.response.headers[headerName.toLowerCase()]
-      // this.setVariable(variableName, value)
-      const headerName = 'X-Request-Id'
-      const value = world.http.response.headers[headerName.toLowerCase()]
-      world.setVariable('requestId', value)
+      storeHeader(world, 'X-Request-Id', 'requestId')
 
       expect(world.getVariable('requestId')).toBe('req-abc-123')
     })
@@ -652,8 +561,7 @@ describe('Response Assertion Steps', () => {
     test('stores status code as variable', () => {
       const world = createMockWorld({ status: 201 } as Partial<MockHttpPort>)
 
-      // Step logic: this.setVariable(variableName, this.http.status)
-      world.setVariable('statusCode', world.http.status)
+      storeStatus(world, 'statusCode')
 
       expect(world.getVariable('statusCode')).toBe(201)
     })

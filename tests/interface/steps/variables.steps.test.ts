@@ -1,13 +1,46 @@
-import { test, expect, describe, beforeEach } from 'bun:test'
+import { test, expect, describe, beforeEach, mock } from 'bun:test'
 import { VariableService } from '../../../src/application/services/VariableService.ts'
 import { InterpolationService } from '../../../src/application/services/InterpolationService.ts'
+
+// Mock Cucumber so the step-file-level Given/When/Then registrations are no-ops
+mock.module('@cucumber/cucumber', () => ({
+  Given: mock(),
+  When: mock(),
+  Then: mock(),
+  Before: mock(),
+  After: mock(),
+  BeforeAll: mock(),
+  AfterAll: mock(),
+  setWorldConstructor: mock(),
+  World: class MockWorld { constructor() {} },
+  Status: { FAILED: 'FAILED', PASSED: 'PASSED' },
+  default: {},
+}))
+
+// Mock @playwright/test so assertion handlers use a working expect
+mock.module('@playwright/test', () => ({
+  expect,
+  default: {},
+}))
+
+// Dynamic imports after mocks so Cucumber registrations run harmlessly
+const {
+  setVariableString,
+  setVariableInt,
+  setVariableDocString,
+  assertVariableEqualsString,
+  assertVariableEqualsInt,
+  assertVariableExists,
+  assertVariableNotExists,
+  assertVariableContains,
+  assertVariableMatches,
+} = await import('../../../src/interface/steps/variables.steps.ts')
 
 /**
  * Tests for variable step definition logic.
  *
- * We do NOT import the step definition files (they register with Cucumber).
- * Instead, we create a mock world object with the same methods the step handlers
- * call, and replicate the handler logic inline per test.
+ * These tests import and invoke the actual exported handler functions from
+ * variables.steps.ts, passing a mock world that satisfies VariablesContext.
  */
 
 interface MockWorld {
@@ -39,10 +72,7 @@ describe('Variable Steps', () => {
 
   describe('I set variable {string} to {string}', () => {
     test('stores a string value', () => {
-      // Step logic: this.setVariable(name, this.interpolate(value))
-      const name = 'greeting'
-      const value = 'hello'
-      world.setVariable(name, world.interpolate(value))
+      setVariableString(world, 'greeting', 'hello')
 
       expect(world.getVariable('greeting')).toBe('hello')
     })
@@ -51,10 +81,7 @@ describe('Variable Steps', () => {
       // Set a variable that will be referenced in interpolation
       world.setVariable('host', 'localhost')
 
-      // Step logic: this.setVariable(name, this.interpolate(value))
-      const name = 'url'
-      const value = 'http://${host}/api'
-      world.setVariable(name, world.interpolate(value))
+      setVariableString(world, 'url', 'http://${host}/api')
 
       expect(world.getVariable('url')).toBe('http://localhost/api')
     })
@@ -64,10 +91,7 @@ describe('Variable Steps', () => {
 
   describe('I set variable {string} to {int}', () => {
     test('stores a numeric value', () => {
-      // Step logic: this.setVariable(name, value)
-      const name = 'count'
-      const value = 42
-      world.setVariable(name, value)
+      setVariableInt(world, 'count', 42)
 
       expect(world.getVariable('count')).toBe(42)
     })
@@ -77,31 +101,14 @@ describe('Variable Steps', () => {
 
   describe('I set variable {string} to: (doc string)', () => {
     test('parses valid JSON doc string', () => {
-      // Step logic:
-      // try { this.setVariable(name, JSON.parse(this.interpolate(docString))) }
-      // catch { this.setVariable(name, this.interpolate(docString)) }
-      const name = 'payload'
-      const docString = '{"key": "value", "num": 123}'
-
-      try {
-        world.setVariable(name, JSON.parse(world.interpolate(docString)))
-      } catch {
-        world.setVariable(name, world.interpolate(docString))
-      }
+      setVariableDocString(world, 'payload', '{"key": "value", "num": 123}')
 
       const stored = world.getVariable('payload') as Record<string, unknown>
       expect(stored).toEqual({ key: 'value', num: 123 })
     })
 
     test('falls back to plain string for non-JSON doc string', () => {
-      const name = 'message'
-      const docString = 'This is just plain text, not JSON'
-
-      try {
-        world.setVariable(name, JSON.parse(world.interpolate(docString)))
-      } catch {
-        world.setVariable(name, world.interpolate(docString))
-      }
+      setVariableDocString(world, 'message', 'This is just plain text, not JSON')
 
       expect(world.getVariable('message')).toBe('This is just plain text, not JSON')
     })
@@ -113,23 +120,14 @@ describe('Variable Steps', () => {
     test('passes when values match', () => {
       world.setVariable('color', 'blue')
 
-      // Step logic:
-      // const actual = this.getVariable(name)
-      // expect(actual).toBe(this.interpolate(expected))
-      const actual = world.getVariable('color')
-      expect(actual).toBe(world.interpolate('blue'))
+      assertVariableEqualsString(world, 'color', 'blue')
     })
 
     test('fails when values do not match', () => {
       world.setVariable('color', 'blue')
 
-      const actual = world.getVariable('color')
       expect(() => {
-        const check = world.interpolate('red')
-        // Replicate the assertion the step makes
-        if (actual !== check) {
-          throw new Error(`Expected "red" but got "${actual}"`)
-        }
+        assertVariableEqualsString(world, 'color', 'red')
       }).toThrow()
     })
   })
@@ -140,11 +138,7 @@ describe('Variable Steps', () => {
     test('passes when numeric values match', () => {
       world.setVariable('count', 99)
 
-      // Step logic:
-      // const actual = this.getVariable(name)
-      // expect(actual).toBe(expected)
-      const actual = world.getVariable('count')
-      expect(actual).toBe(99)
+      assertVariableEqualsInt(world, 'count', 99)
     })
   })
 
@@ -154,8 +148,7 @@ describe('Variable Steps', () => {
     test('passes when variable exists', () => {
       world.setVariable('token', 'abc123')
 
-      // Step logic: expect(this.hasVariable(name)).toBe(true)
-      expect(world.hasVariable('token')).toBe(true)
+      assertVariableExists(world, 'token')
     })
   })
 
@@ -163,8 +156,7 @@ describe('Variable Steps', () => {
 
   describe('the variable {string} should not exist', () => {
     test('passes when variable does not exist', () => {
-      // Step logic: expect(this.hasVariable(name)).toBe(false)
-      expect(world.hasVariable('nonexistent')).toBe(false)
+      assertVariableNotExists(world, 'nonexistent')
     })
   })
 
@@ -174,11 +166,7 @@ describe('Variable Steps', () => {
     test('passes when variable value contains substring', () => {
       world.setVariable('message', 'Hello, World!')
 
-      // Step logic:
-      // const actual = String(this.getVariable(name))
-      // expect(actual).toContain(this.interpolate(expected))
-      const actual = String(world.getVariable('message'))
-      expect(actual).toContain(world.interpolate('World'))
+      assertVariableContains(world, 'message', 'World')
     })
   })
 
@@ -188,22 +176,14 @@ describe('Variable Steps', () => {
     test('passes when variable value matches regex', () => {
       world.setVariable('email', 'test@example.com')
 
-      // Step logic:
-      // const actual = String(this.getVariable(name))
-      // expect(actual).toMatch(new RegExp(pattern))
-      const actual = String(world.getVariable('email'))
-      expect(actual).toMatch(new RegExp('^\\S+@\\S+\\.\\S+$'))
+      assertVariableMatches(world, 'email', '^\\S+@\\S+\\.\\S+$')
     })
 
     test('fails when variable value does not match regex', () => {
       world.setVariable('email', 'not-an-email')
 
-      const actual = String(world.getVariable('email'))
       expect(() => {
-        const regex = new RegExp('^\\S+@\\S+\\.\\S+$')
-        if (!regex.test(actual)) {
-          throw new Error(`Expected "${actual}" to match pattern`)
-        }
+        assertVariableMatches(world, 'email', '^\\S+@\\S+\\.\\S+$')
       }).toThrow()
     })
   })

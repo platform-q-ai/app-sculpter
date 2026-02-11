@@ -1,6 +1,42 @@
 import { test, expect, describe, beforeEach, mock } from 'bun:test'
+
+// Mock Cucumber so importing step files doesn't trigger registration side-effects
+const noop = () => {}
+mock.module('@cucumber/cucumber', () => ({
+  Given: noop,
+  When: noop,
+  Then: noop,
+}))
+
+// Mock @playwright/test so assertion handlers use bun:test's expect
+mock.module('@playwright/test', () => ({ expect }))
+
 import { VariableService } from '../../../src/application/services/VariableService.ts'
 import { InterpolationService } from '../../../src/application/services/InterpolationService.ts'
+
+// Step definition handlers – dynamic imports to ensure mocks are applied first
+const { setEnvVar, setEnvVarsFromTable, setWorkingDir } = await import(
+  '../../../src/interface/steps/cli/environment.steps.ts'
+)
+const { runCommand, runCommandWithStdin } = await import(
+  '../../../src/interface/steps/cli/execution.steps.ts'
+)
+const {
+  assertExitCode,
+  assertExitCodeNot,
+  assertCommandSucceeded,
+  assertCommandFailed,
+  assertStdoutContains,
+  assertStdoutNotContains,
+  assertStdoutMatches,
+  assertStderrContains,
+  assertStderrNotContains,
+  assertStderrEmpty,
+  assertStdoutEquals,
+  storeStdout,
+  storeStderr,
+  storeExitCode,
+} = await import('../../../src/interface/steps/cli/assertions.steps.ts')
 
 // ---------------------------------------------------------------------------
 // Helpers: mock world & mock CLI adapter
@@ -102,7 +138,7 @@ describe('CLI step definitions – Environment', () => {
     const name = 'API_KEY'
     const value = 'secret123'
 
-    world.cli.setEnv(name, world.interpolate(value))
+    setEnvVar(world, name, value)
 
     expect(world.cli.setEnv).toHaveBeenCalledTimes(1)
     expect(world.cli.setEnv).toHaveBeenCalledWith('API_KEY', 'secret123')
@@ -116,10 +152,9 @@ describe('CLI step definitions – Environment', () => {
       DEBUG: 'true',
     }
 
-    // Simulates the step logic: iterates rowsHash entries and calls setEnv for each
-    for (const [name, value] of Object.entries(env)) {
-      world.cli.setEnv(name, world.interpolate(value))
-    }
+    // Simulate a Cucumber DataTable with rowsHash()
+    const dataTable = { rowsHash: () => env }
+    setEnvVarsFromTable(world, dataTable)
 
     expect(world.cli.setEnv).toHaveBeenCalledTimes(3)
     expect(world.cli.setEnv).toHaveBeenCalledWith('NODE_ENV', 'test')
@@ -131,7 +166,7 @@ describe('CLI step definitions – Environment', () => {
   test('I set working directory to {string} calls cli.setWorkingDir', () => {
     const dir = '/tmp/test-workspace'
 
-    world.cli.setWorkingDir(world.interpolate(dir))
+    setWorkingDir(world, dir)
 
     expect(world.cli.setWorkingDir).toHaveBeenCalledTimes(1)
     expect(world.cli.setWorkingDir).toHaveBeenCalledWith('/tmp/test-workspace')
@@ -149,7 +184,7 @@ describe('CLI step definitions – Execution', () => {
   test('I run {string} calls cli.run with interpolated command', async () => {
     const command = 'echo hello'
 
-    await world.cli.run(world.interpolate(command))
+    await runCommand(world, command)
 
     expect(world.cli.run).toHaveBeenCalledTimes(1)
     expect(world.cli.run).toHaveBeenCalledWith('echo hello')
@@ -160,7 +195,7 @@ describe('CLI step definitions – Execution', () => {
     const command = 'cat'
     const docString = 'line1\nline2\nline3'
 
-    await world.cli.runWithStdin(world.interpolate(command), world.interpolate(docString))
+    await runCommandWithStdin(world, command, docString)
 
     expect(world.cli.runWithStdin).toHaveBeenCalledTimes(1)
     expect(world.cli.runWithStdin).toHaveBeenCalledWith('cat', 'line1\nline2\nline3')
@@ -171,7 +206,7 @@ describe('CLI step definitions – Execution', () => {
     const command = 'grep pattern'
     const stdin = 'some input text'
 
-    await world.cli.runWithStdin(world.interpolate(command), world.interpolate(stdin))
+    await runCommandWithStdin(world, command, stdin)
 
     expect(world.cli.runWithStdin).toHaveBeenCalledTimes(1)
     expect(world.cli.runWithStdin).toHaveBeenCalledWith('grep pattern', 'some input text')
@@ -183,17 +218,16 @@ describe('CLI step definitions – Assertions', () => {
   test('the exit code should be {int} passes for matching code', () => {
     const world = createMockWorld({ stdout: '', stderr: '', exitCode: 0, duration: 50 })
 
-    expect(world.cli.exitCode).toBe(0)
+    assertExitCode(world, 0)
   })
 
   // 8. 'exit code should be' fails for mismatched
   test('the exit code should be {int} fails for mismatched code', () => {
     const world = createMockWorld({ stdout: '', stderr: '', exitCode: 1, duration: 50 })
 
-    expect(world.cli.exitCode).not.toBe(0)
+    assertExitCodeNot(world, 0)
     expect(() => {
-      const code = world.cli.exitCode
-      if (code !== 0) throw new Error(`Expected exit code 0 but got ${code}`)
+      assertExitCode(world, 0)
     }).toThrow()
   })
 
@@ -201,21 +235,21 @@ describe('CLI step definitions – Assertions', () => {
   test('the exit code should not be {int} passes for different code', () => {
     const world = createMockWorld({ stdout: '', stderr: '', exitCode: 1, duration: 50 })
 
-    expect(world.cli.exitCode).not.toBe(0)
+    assertExitCodeNot(world, 0)
   })
 
   // 10. 'command should succeed' passes for exit code 0
   test('the command should succeed passes for exit code 0', () => {
     const world = createMockWorld({ stdout: 'ok', stderr: '', exitCode: 0, duration: 50 })
 
-    expect(world.cli.exitCode).toBe(0)
+    assertCommandSucceeded(world)
   })
 
   // 11. 'command should fail' passes for non-zero exit code
   test('the command should fail passes for non-zero exit code', () => {
     const world = createMockWorld({ stdout: '', stderr: 'error', exitCode: 1, duration: 50 })
 
-    expect(world.cli.exitCode).not.toBe(0)
+    assertCommandFailed(world)
   })
 
   // 12. 'stdout should contain' passes for substring
@@ -227,7 +261,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    expect(world.cli.stdout).toContain(world.interpolate('Hello World'))
+    assertStdoutContains(world, 'Hello World')
   })
 
   // 13. 'stdout should not contain' passes
@@ -239,7 +273,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    expect(world.cli.stdout).not.toContain(world.interpolate('Goodbye'))
+    assertStdoutNotContains(world, 'Goodbye')
   })
 
   // 14. 'stdout should match' passes for regex match
@@ -251,8 +285,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    const pattern = 'version \\d+\\.\\d+\\.\\d+'
-    expect(world.cli.stdout).toMatch(new RegExp(pattern))
+    assertStdoutMatches(world, 'version \\d+\\.\\d+\\.\\d+')
   })
 
   // 15. 'stderr should contain' passes for substring
@@ -264,7 +297,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    expect(world.cli.stderr).toContain(world.interpolate('deprecated'))
+    assertStderrContains(world, 'deprecated')
   })
 
   // 16. 'stderr should not contain' passes
@@ -276,7 +309,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    expect(world.cli.stderr).not.toContain(world.interpolate('fatal'))
+    assertStderrNotContains(world, 'fatal')
   })
 
   // 17. 'stderr should be empty' passes when blank
@@ -288,7 +321,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    expect(world.cli.stderr.trim()).toBe('')
+    assertStderrEmpty(world)
   })
 
   test('stderr should be empty passes when stderr is only whitespace', () => {
@@ -299,7 +332,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    expect(world.cli.stderr.trim()).toBe('')
+    assertStderrEmpty(world)
   })
 
   // 18. 'stdout should equal:' (docstring) passes for exact match
@@ -311,8 +344,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    const docString = '  Hello World  '
-    expect(world.cli.stdout.trim()).toBe(world.interpolate(docString).trim())
+    assertStdoutEquals(world, '  Hello World  ')
   })
 
   // 19. 'I store stdout as' stores trimmed stdout
@@ -324,8 +356,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    const variableName = 'output'
-    world.setVariable(variableName, world.cli.stdout.trim())
+    storeStdout(world, 'output')
 
     expect(world.getVariable<string>('output')).toBe('result-value')
   })
@@ -339,8 +370,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    const variableName = 'errorOutput'
-    world.setVariable(variableName, world.cli.stderr.trim())
+    storeStderr(world, 'errorOutput')
 
     expect(world.getVariable<string>('errorOutput')).toBe('warning message')
   })
@@ -354,8 +384,7 @@ describe('CLI step definitions – Assertions', () => {
       duration: 50,
     })
 
-    const variableName = 'code'
-    world.setVariable(variableName, world.cli.exitCode)
+    storeExitCode(world, 'code')
 
     expect(world.getVariable<number>('code')).toBe(42)
   })

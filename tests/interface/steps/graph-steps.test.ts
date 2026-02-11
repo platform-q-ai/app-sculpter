@@ -3,12 +3,55 @@ import { VariableService } from '../../../src/application/services/VariableServi
 import { InterpolationService } from '../../../src/application/services/InterpolationService.ts'
 import type { GraphNode, Dependency, Cycle } from '../../../src/domain/entities/index.ts'
 
+// Mock Cucumber so the step-file-level Given/When/Then registrations are no-ops
+mock.module('@cucumber/cucumber', () => ({
+  Given: mock(),
+  When: mock(),
+  Then: mock(),
+  Before: mock(),
+  After: mock(),
+  BeforeAll: mock(),
+  AfterAll: mock(),
+  setWorldConstructor: mock(),
+  World: class MockWorld { constructor() {} },
+  Status: { FAILED: 'FAILED', PASSED: 'PASSED' },
+  default: {},
+}))
+
+// Mock @playwright/test so assertion handlers use a working expect
+mock.module('@playwright/test', () => ({
+  expect,
+  default: {},
+}))
+
+// Dynamic imports after mocks so Cucumber registrations run harmlessly
+const {
+  selectAllNodesInLayer,
+  selectAllClassesInLayer,
+  selectClass,
+  queryGraph,
+  checkCircularDependencies,
+} = await import('../../../src/interface/steps/graph/selection.steps.ts')
+const {
+  assertNoDependencyOnLayer,
+  assertNoCyclesFound,
+  assertNoCircularDependencies,
+} = await import('../../../src/interface/steps/graph/dependency-assertions.steps.ts')
+const {
+  assertResultEmpty,
+  assertResultRowCount,
+  assertResultMinRowCount,
+  assertResultPathEquals,
+  storeResultCount,
+  storeResult,
+} = await import('../../../src/interface/steps/graph/query.steps.ts')
+
 /**
  * Tests for graph step definition logic (selection, dependency-assertions, query).
  *
- * We do NOT import the step definition files (they register with Cucumber).
- * Instead, we create a mock world with a mock GraphPort and replicate
- * the handler logic inline per test.
+ * These tests import and invoke the actual exported handler functions from
+ * the refactored step definition files, passing a mock world that satisfies
+ * the context interfaces.
  */
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -113,11 +156,7 @@ describe('Graph Steps', () => {
       const nodes = [makeNode({ name: 'A', layer: 'domain' })]
       world.graph.getNodesInLayer.mockResolvedValueOnce(nodes)
 
-      // Step logic: Given all nodes in layer {string}
-      const layer = 'domain'
-      const layerName = world.interpolate(layer)
-      world.setVariable('_currentLayer', layerName)
-      await world.graph.getNodesInLayer(layerName)
+      await selectAllNodesInLayer(world, 'domain')
 
       expect(world.graph.getNodesInLayer).toHaveBeenCalledWith('domain')
     })
@@ -130,12 +169,7 @@ describe('Graph Steps', () => {
       ]
       world.graph.getNodesInLayer.mockResolvedValueOnce(nodes)
 
-      // Step logic
-      const layer = 'domain'
-      const layerName = world.interpolate(layer)
-      world.setVariable('_currentLayer', layerName)
-      const result = await world.graph.getNodesInLayer(layerName)
-      world.setVariable('_selectedNodes', result)
+      await selectAllNodesInLayer(world, 'domain')
 
       const stored = world.getVariable<GraphNode[]>('_selectedNodes')
       expect(stored).toHaveLength(2)
@@ -148,12 +182,7 @@ describe('Graph Steps', () => {
       const classNodes = [makeNode({ name: 'Svc', type: 'class', layer: 'application' })]
       world.graph.getNodesInLayer.mockResolvedValueOnce(classNodes)
 
-      // Step logic: Given all classes in layer {string}
-      const layer = 'application'
-      const layerName = world.interpolate(layer)
-      world.setVariable('_currentLayer', layerName)
-      const nodes = await world.graph.getNodesInLayer(layerName, 'class')
-      world.setVariable('_selectedNodes', nodes)
+      await selectAllClassesInLayer(world, 'application')
 
       expect(world.graph.getNodesInLayer).toHaveBeenCalledWith('application', 'class')
       const stored = world.getVariable<GraphNode[]>('_selectedNodes')
@@ -166,13 +195,7 @@ describe('Graph Steps', () => {
       const nodes = [makeNode({ name: 'UserService', fqn: 'com.app.UserService' })]
       world.graph.findNodes.mockResolvedValueOnce(nodes)
 
-      // Step logic: Given the class {string}
-      const name = 'UserService'
-      const found = await world.graph.findNodes(world.interpolate(name), 'class') as GraphNode[]
-      world.setVariable('_selectedNodes', found)
-      if (found.length > 0) {
-        world.setVariable('_currentNode', found[0])
-      }
+      await selectClass(world, 'UserService')
 
       expect(world.graph.findNodes).toHaveBeenCalledWith('UserService', 'class')
       const currentNode = world.getVariable<GraphNode>('_currentNode')
@@ -183,9 +206,7 @@ describe('Graph Steps', () => {
     test('I query: docstring calls graph.query', async () => {
       world.graph.query.mockResolvedValueOnce([{ n: { name: 'Foo' } }])
 
-      // Step logic: When I query: (docString)
-      const docString = 'MATCH (n) RETURN n'
-      await world.graph.query(world.interpolate(docString))
+      await queryGraph(world, 'MATCH (n) RETURN n')
 
       expect(world.graph.query).toHaveBeenCalledWith('MATCH (n) RETURN n')
     })
@@ -195,9 +216,7 @@ describe('Graph Steps', () => {
       const cycles = [makeCycle([makeNode({ name: 'A' }), makeNode({ name: 'B' })])]
       world.graph.findCircularDependencies.mockResolvedValueOnce(cycles)
 
-      // Step logic: When I check for circular dependencies
-      const result = await world.graph.findCircularDependencies() as Cycle[]
-      world.setVariable('_cycles', result)
+      await checkCircularDependencies(world)
 
       expect(world.graph.findCircularDependencies).toHaveBeenCalled()
       const stored = world.getVariable<Cycle[]>('_cycles')
@@ -216,12 +235,9 @@ describe('Graph Steps', () => {
       world.setVariable('_currentLayer', 'domain')
       world.graph.getLayerDependencies.mockResolvedValueOnce([])
 
-      // Step logic: Then it should not depend on layer {string}
-      const targetLayer = 'infrastructure'
-      const currentLayer = world.getVariable<string>('_currentLayer')
-      const deps = await world.graph.getLayerDependencies(currentLayer, world.interpolate(targetLayer))
+      await assertNoDependencyOnLayer(world, 'infrastructure')
 
-      expect(deps).toHaveLength(0)
+      expect(world.graph.getLayerDependencies).toHaveBeenCalledWith('domain', 'infrastructure')
     })
 
     // ── Test 8: 'it should not depend on layer' fails when deps exist ──────
@@ -230,24 +246,18 @@ describe('Graph Steps', () => {
       const deps = [makeDep({ type: 'imports' })]
       world.graph.getLayerDependencies.mockResolvedValueOnce(deps)
 
-      // Step logic
-      const targetLayer = 'infrastructure'
-      const currentLayer = world.getVariable<string>('_currentLayer')
-      const result = await world.graph.getLayerDependencies(currentLayer, world.interpolate(targetLayer))
-
-      expect(() => {
-        expect(result).toHaveLength(0)
-      }).toThrow()
+      await expect(
+        assertNoDependencyOnLayer(world, 'infrastructure'),
+      ).rejects.toThrow()
     })
 
     // ── Test 9: 'there should be no circular dependencies' passes when none
     test('there should be no circular dependencies passes when none', async () => {
       world.graph.findCircularDependencies.mockResolvedValueOnce([])
 
-      // Step logic: Then there should be no circular dependencies
-      const cycles = await world.graph.findCircularDependencies()
+      await assertNoCircularDependencies(world)
 
-      expect(cycles).toHaveLength(0)
+      expect(world.graph.findCircularDependencies).toHaveBeenCalled()
     })
 
     // ── Test 10: 'there should be no circular dependencies' fails when found
@@ -255,22 +265,16 @@ describe('Graph Steps', () => {
       const cycles = [makeCycle([makeNode({ name: 'X' }), makeNode({ name: 'Y' })])]
       world.graph.findCircularDependencies.mockResolvedValueOnce(cycles)
 
-      // Step logic
-      const result = await world.graph.findCircularDependencies()
-
-      expect(() => {
-        expect(result).toHaveLength(0)
-      }).toThrow()
+      await expect(
+        assertNoCircularDependencies(world),
+      ).rejects.toThrow()
     })
 
     // ── Test 11: 'no cycles should be found' passes from _cycles variable ──
     test('no cycles should be found passes when _cycles is empty', () => {
       world.setVariable('_cycles', [] as Cycle[])
 
-      // Step logic: Then no cycles should be found
-      const cycles = world.getVariable<Cycle[]>('_cycles')
-
-      expect(cycles).toHaveLength(0)
+      assertNoCyclesFound(world)
     })
 
     // ── Test 12: 'no cycles should be found' fails when cycles exist ───────
@@ -278,11 +282,8 @@ describe('Graph Steps', () => {
       const cycles = [makeCycle([makeNode({ name: 'A' }), makeNode({ name: 'B' })])]
       world.setVariable('_cycles', cycles)
 
-      // Step logic
-      const stored = world.getVariable<Cycle[]>('_cycles')
-
       expect(() => {
-        expect(stored).toHaveLength(0)
+        assertNoCyclesFound(world)
       }).toThrow()
     })
 
@@ -291,10 +292,7 @@ describe('Graph Steps', () => {
       world.setVariable('_currentLayer', 'application')
       world.graph.getLayerDependencies.mockResolvedValueOnce([])
 
-      // Step logic
-      const targetLayer = 'infrastructure'
-      const currentLayer = world.getVariable<string>('_currentLayer')
-      await world.graph.getLayerDependencies(currentLayer, world.interpolate(targetLayer))
+      await assertNoDependencyOnLayer(world, 'infrastructure')
 
       expect(world.graph.getLayerDependencies).toHaveBeenCalledWith('application', 'infrastructure')
     })
@@ -309,53 +307,35 @@ describe('Graph Steps', () => {
     test('the result should be empty passes when count is 0', () => {
       world.graph.count = 0
 
-      // Step logic: Then the result should be empty
-      expect(world.graph.count).toBe(0)
+      assertResultEmpty(world)
     })
 
     // ── Test 14: 'the result should have N rows' passes for matching count ─
     test('the result should have N rows passes for matching count', () => {
       world.graph.count = 5
 
-      // Step logic: Then the result should have {int} rows
-      const expectedCount = 5
-      expect(world.graph.count).toBe(expectedCount)
+      assertResultRowCount(world, 5)
     })
 
     // ── Test 15: 'the result should have at least N rows' passes ───────────
     test('the result should have at least N rows passes', () => {
       world.graph.count = 10
 
-      // Step logic: Then the result should have at least {int} rows
-      const minCount = 5
-      expect(world.graph.count).toBeGreaterThanOrEqual(minCount)
+      assertResultMinRowCount(world, 5)
     })
 
     // ── Test 16: 'the result path should equal' passes ─────────────────────
     test('the result path should equal passes for matching value', () => {
       world.graph.records = [{ user: { name: 'Alice' } }]
 
-      // Step logic: Then the result path {string} should equal {string}
-      const path = 'user.name'
-      const expectedValue = 'Alice'
-      const records = world.graph.records
-      expect(records.length).toBeGreaterThan(0)
-
-      const keys = path.split('.')
-      let value: unknown = records[0]
-      for (const key of keys) {
-        value = (value as Record<string, unknown>)[key]
-      }
-      expect(String(value)).toBe(world.interpolate(expectedValue))
+      assertResultPathEquals(world, 'user.name', 'Alice')
     })
 
     // ── Test 17: 'I store the result count as' stores count ────────────────
     test('I store the result count as stores count variable', () => {
       world.graph.count = 42
 
-      // Step logic: Then I store the result count as {string}
-      const variableName = 'nodeCount'
-      world.setVariable(variableName, world.graph.count)
+      storeResultCount(world, 'nodeCount')
 
       expect(world.getVariable<number>('nodeCount')).toBe(42)
     })
@@ -365,9 +345,7 @@ describe('Graph Steps', () => {
       const records = [{ id: 1, name: 'Foo' }, { id: 2, name: 'Bar' }]
       world.graph.records = records
 
-      // Step logic: Then I store the result as {string}
-      const variableName = 'queryResults'
-      world.setVariable(variableName, world.graph.records)
+      storeResult(world, 'queryResults')
 
       const stored = world.getVariable<Record<string, unknown>[]>('queryResults')
       expect(stored).toHaveLength(2)
@@ -388,12 +366,7 @@ describe('Graph Steps', () => {
       ]
       world.graph.getNodesInLayer.mockResolvedValueOnce(nodes)
 
-      // Step logic: Given all nodes in layer {string}
-      const layer = 'application'
-      const layerName = world.interpolate(layer)
-      world.setVariable('_currentLayer', layerName)
-      const result = await world.graph.getNodesInLayer(layerName)
-      world.setVariable('_selectedNodes', result)
+      await selectAllNodesInLayer(world, 'application')
 
       expect(world.getVariable<string>('_currentLayer')).toBe('application')
       const stored = world.getVariable<GraphNode[]>('_selectedNodes')
