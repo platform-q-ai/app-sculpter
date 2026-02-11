@@ -37,52 +37,18 @@ mock.module('@playwright/test', () => ({
   default: {},
 }))
 
+// Canned-values lookup map for JSONPath mock — each test uses a unique path,
+// so we key by path string and return the expected query results directly.
+const jsonPathCannedValues: Record<string, unknown[]> = {
+  '$.name': ['Alice'],
+  '$.nonexistent': [],
+  '$.data.users[0].name': ['Bob'],
+  '$.items[*].id': [1, 2, 3],
+}
+
 mock.module('jsonpath', () => ({
   default: {
-    query: (obj: unknown, path: string) => {
-      // Minimal JSONPath implementation for testing
-      const segments = path.replace(/^\$/, '').split('.').filter(Boolean)
-      let current: unknown = obj
-
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i]!
-        if (current == null) return []
-        const record = current as Record<string, unknown>
-
-        // Handle array wildcard with trailing property: items[*] followed by .id
-        const wildcardMatch = segment.match(/^(\w+)\[\*\]$/)
-        if (wildcardMatch && wildcardMatch[1]) {
-          const arr = record[wildcardMatch[1]]
-          if (!Array.isArray(arr)) return []
-          // If there are remaining segments, pluck from each element
-          const remaining = segments.slice(i + 1)
-          if (remaining.length > 0) {
-            return arr.map((item: unknown) => {
-              let val: unknown = item
-              for (const seg of remaining) {
-                if (val == null) return undefined
-                val = (val as Record<string, unknown>)[seg]
-              }
-              return val
-            }).filter((v: unknown) => v !== undefined)
-          }
-          return arr
-        }
-
-        // Handle array index: users[0]
-        const indexMatch = segment.match(/^(\w+)\[(\d+)\]$/)
-        if (indexMatch && indexMatch[1] && indexMatch[2]) {
-          const arr = record[indexMatch[1]]
-          if (!Array.isArray(arr)) return []
-          current = arr[Number(indexMatch[2])]
-          continue
-        }
-
-        current = record[segment]
-      }
-
-      return current === undefined ? [] : [current]
-    },
+    query: (_obj: unknown, path: string) => jsonPathCannedValues[path] ?? [],
   },
 }))
 
@@ -433,5 +399,36 @@ describe('PlaywrightHttpAdapter', () => {
 
     expect(mockDisposeCalled).toBe(true)
     expect(mockContext.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  // 26
+  test('context.fetch() throwing propagates network error', async () => {
+    const adapter = createAdapter()
+    await adapter.initialize()
+
+    mockContext.fetch.mockImplementationOnce(() => {
+      throw new Error('net::ERR_CONNECTION_REFUSED')
+    })
+
+    await expect(adapter.get('/unreachable')).rejects.toThrow('net::ERR_CONNECTION_REFUSED')
+  })
+
+  // 27
+  test('calling methods before initialize() throws', async () => {
+    const adapter = createAdapter()
+    // Do NOT call adapter.initialize()
+
+    await expect(adapter.get('/test')).rejects.toThrow()
+  })
+
+  // 28
+  test('timeout config is forwarded to API context', async () => {
+    const adapter = createAdapter({ timeout: 500 })
+    await adapter.initialize()
+
+    expect(mockNewContext).toHaveBeenCalledTimes(1)
+    const call = mockNewContext.mock.calls[0]
+    const args = call![0] as Record<string, unknown>
+    expect(args.timeout).toBe(500)
   })
 })
