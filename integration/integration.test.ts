@@ -124,7 +124,6 @@ describe('Integration: CLI project — failure reporting', () => {
    * cucumber.yml when a positional argument is provided).
    */
   async function runFailingScenario(
-    scenarioName: string,
     featureContent: string,
   ): Promise<ProjectResult> {
     const tmpFile = `/tmp/extern-bdd-fail-${Date.now()}-${Math.random().toString(36).slice(2)}.feature`
@@ -132,13 +131,12 @@ describe('Integration: CLI project — failure reporting', () => {
     try {
       return runProject('cli', '--format', 'pretty', tmpFile)
     } finally {
-      try { await Bun.file(tmpFile).exists() && Bun.spawnSync(['rm', tmpFile]) } catch {}
+      try { Bun.spawnSync(['rm', '-f', tmpFile]) } catch {}
     }
   }
 
   test('wrong exit code — reports expected vs actual exit code', async () => {
     const result = await runFailingScenario(
-      'wrong-exit-code',
       [
         '@cli',
         'Feature: Deliberate failure — wrong exit code',
@@ -168,7 +166,6 @@ describe('Integration: CLI project — failure reporting', () => {
 
   test('wrong stdout content — reports expected string vs actual stdout', async () => {
     const result = await runFailingScenario(
-      'wrong-stdout',
       [
         '@cli',
         'Feature: Deliberate failure — wrong stdout content',
@@ -197,7 +194,6 @@ describe('Integration: CLI project — failure reporting', () => {
 
   test('wrong stderr content — reports expected vs actual stderr', async () => {
     const result = await runFailingScenario(
-      'wrong-stderr',
       [
         '@cli',
         'Feature: Deliberate failure — wrong stderr content',
@@ -216,7 +212,6 @@ describe('Integration: CLI project — failure reporting', () => {
 
   test('regex mismatch — reports the pattern that did not match', async () => {
     const result = await runFailingScenario(
-      'regex-mismatch',
       [
         '@cli',
         'Feature: Deliberate failure — regex mismatch',
@@ -235,7 +230,6 @@ describe('Integration: CLI project — failure reporting', () => {
 
   test('success-expected-but-failed — reports the unexpected non-zero exit', async () => {
     const result = await runFailingScenario(
-      'success-expected',
       [
         '@cli',
         'Feature: Deliberate failure — expected success',
@@ -254,7 +248,6 @@ describe('Integration: CLI project — failure reporting', () => {
 
   test('failure report at the end includes scenario count with failures', async () => {
     const result = await runFailingScenario(
-      'summary-check',
       [
         '@cli',
         'Feature: Deliberate failure — summary verification',
@@ -283,7 +276,6 @@ describe('Integration: CLI project — failure reporting', () => {
 
   test('undefined step — reports the step as undefined with a snippet', async () => {
     const result = await runFailingScenario(
-      'undefined-step',
       [
         '@cli',
         'Feature: Deliberate failure — undefined step',
