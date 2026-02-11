@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: ['*']
+    branches: ["*"]
   push:
-    branches: [master, feat/extern-bdd-framework]
+    branches: [master]
 
 jobs:
   test:
