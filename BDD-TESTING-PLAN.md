@@ -1,4 +1,4 @@
-# BDD Testing Plan: Extern-BDD Framework
+# BDD Testing Plan: Exo BDD Framework
 
 **Version:** 1.0.0
 **Status:** Draft
@@ -9,7 +9,7 @@
 
 ## Document Overview
 
-This testing plan covers every layer of the Extern-BDD framework organized by implementation phase from `IMPLEMENTATION-PLAN.md`. All infrastructure adapter tests use **mock/stub implementations** to avoid requiring external services (Playwright, Neo4j, OWASP ZAP). Tests use `bun:test` as the test runner.
+This testing plan covers every layer of the Exo BDD framework organized by implementation phase from `IMPLEMENTATION-PLAN.md`. All infrastructure adapter tests use **mock/stub implementations** to avoid requiring external services (Playwright, Neo4j, OWASP ZAP). Tests use `bun:test` as the test runner.
 
 ---
 
@@ -137,10 +137,10 @@ Since entities are interfaces, tests validate structural contracts via type asse
 
 | Test | Description |
 |------|-------------|
-| `loadConfig loads from default path` | Mock file system, verify it loads `extern-bdd.config.ts` |
+| `loadConfig loads from default path` | Mock file system, verify it loads `exo-bdd.config.ts` |
 | `loadConfig loads from custom path` | Pass explicit path, verify import |
 | `loadConfig throws for missing config file` | Non-existent path should throw |
-| `loadConfig returns parsed ExternBddConfig` | Verify the returned shape |
+| `loadConfig returns parsed ExoBddConfig` | Verify the returned shape |
 | `defineConfig returns the same config object` | Identity function verification |
 | `defineConfig provides type safety` | Verify TypeScript type inference (compile-time check) |
 
@@ -148,9 +148,9 @@ Since entities are interfaces, tests validate structural contracts via type asse
 
 | Test | Description |
 |------|-------------|
-| `ExternBddConfig with all adapters configured` | Full config object validates |
-| `ExternBddConfig with no adapters` | Empty adapters object is valid |
-| `ExternBddConfig with only HTTP adapter` | Partial config is valid |
+| `ExoBddConfig with all adapters configured` | Full config object validates |
+| `ExoBddConfig with no adapters` | Empty adapters object is valid |
+| `ExoBddConfig with only HTTP adapter` | Partial config is valid |
 | `HttpAdapterConfig requires baseURL` | Verify baseURL is mandatory |
 | `HttpAdapterConfig with auth bearer config` | Verify auth.type='bearer' + token |
 | `HttpAdapterConfig with auth basic config` | Verify auth.type='basic' + username/password |
@@ -624,7 +624,7 @@ Since entities are interfaces, tests validate structural contracts via type asse
 | `exports InterpolationService class` | `typeof InterpolationService === 'function'` |
 | `does not export internal infrastructure adapters` | PlaywrightHttpAdapter not in exports |
 | `does not export internal factories directly` | Only through createAdapters |
-| `type exports are importable` | HttpPort, BrowserPort, CliPort, GraphPort, SecurityPort, Adapters, ExternBddConfig |
+| `type exports are importable` | HttpPort, BrowserPort, CliPort, GraphPort, SecurityPort, Adapters, ExoBddConfig |
 
 ---
 

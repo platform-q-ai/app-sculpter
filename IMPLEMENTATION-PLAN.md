@@ -1,4 +1,4 @@
-# Implementation Plan: Extern-BDD Framework
+# Implementation Plan: Exo BDD Framework
 
 Following Clean Architecture principles, this plan organizes the framework into distinct layers with clear dependency rules.
 
@@ -23,7 +23,7 @@ Following Clean Architecture principles, this plan organizes the framework into 
 ## Project Structure
 
 ```
-extern-bdd/
+exo-bdd/
 ├── src/
 │   ├── domain/                      # Core business logic (no dependencies)
 │   │   ├── entities/
@@ -460,7 +460,7 @@ export class InterpolationService {
 
 ```typescript
 // src/application/config/ConfigSchema.ts
-export interface ExternBddConfig {
+export interface ExoBddConfig {
   adapters: {
     http?: HttpAdapterConfig
     browser?: BrowserAdapterConfig
@@ -482,17 +482,17 @@ export interface HttpAdapterConfig {
 
 ```typescript
 // src/application/config/ConfigLoader.ts
-import type { ExternBddConfig } from './ConfigSchema'
+import type { ExoBddConfig } from './ConfigSchema'
 import { pathToFileURL } from 'url'
 import { resolve } from 'path'
 
-export async function loadConfig(configPath?: string): Promise<ExternBddConfig> {
-  const path = configPath ?? resolve(process.cwd(), 'extern-bdd.config.ts')
+export async function loadConfig(configPath?: string): Promise<ExoBddConfig> {
+  const path = configPath ?? resolve(process.cwd(), 'exo-bdd.config.ts')
   const module = await import(pathToFileURL(path).href)
   return module.default
 }
 
-export function defineConfig(config: ExternBddConfig): ExternBddConfig {
+export function defineConfig(config: ExoBddConfig): ExoBddConfig {
   return config
 }
 ```
@@ -666,7 +666,7 @@ export class PlaywrightBrowserAdapter implements BrowserPort {
 
 ```typescript
 // src/infrastructure/factories/AdapterFactory.ts
-import type { ExternBddConfig } from '../../application/config'
+import type { ExoBddConfig } from '../../application/config'
 import type { HttpPort, BrowserPort, CliPort, GraphPort, SecurityPort } from '../../application/ports'
 import { PlaywrightHttpAdapter } from '../adapters/http/PlaywrightHttpAdapter'
 import { PlaywrightBrowserAdapter } from '../adapters/browser/PlaywrightBrowserAdapter'
@@ -683,7 +683,7 @@ export interface Adapters {
   dispose(): Promise<void>
 }
 
-export async function createAdapters(config: ExternBddConfig): Promise<Adapters> {
+export async function createAdapters(config: ExoBddConfig): Promise<Adapters> {
   const adapters: Partial<Adapters> = {}
   
   if (config.adapters.http) {
@@ -922,7 +922,7 @@ Then<TestWorld>(
 // src/index.ts
 // Configuration
 export { defineConfig, loadConfig } from './application/config'
-export type { ExternBddConfig, HttpAdapterConfig, BrowserAdapterConfig } from './application/config'
+export type { ExoBddConfig, HttpAdapterConfig, BrowserAdapterConfig } from './application/config'
 
 // Ports (for custom adapter implementations)
 export type { HttpPort, BrowserPort, CliPort, GraphPort, SecurityPort } from './application/ports'

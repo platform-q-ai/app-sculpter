@@ -1,4 +1,4 @@
-# Extern-BDD Specification
+# Exo BDD Specification
 
 **Version:** 0.1.0-draft  
 **Status:** RFC  
@@ -225,7 +225,7 @@ interface StepResult {
 Adapters are discovered via:
 
 1. **Built-in**: Shipped with the framework
-2. **NPM/Package**: Installed as `extern-bdd-adapter-*`
+2. **NPM/Package**: Installed as `exo-bdd-adapter-*`
 3. **Local**: Defined in `./adapters/` directory
 4. **Remote**: HTTP-based adapter services (for non-JS ecosystems)
 
@@ -266,10 +266,10 @@ Response:
 
 ### 5.1 Configuration File
 
-`extern-bdd.yaml` (or `.json`, `.toml`):
+`exo-bdd.yaml` (or `.json`, `.toml`):
 
 ```yaml
-# extern-bdd.yaml
+# exo-bdd.yaml
 version: "1"
 
 # Test file locations
@@ -358,7 +358,7 @@ reports:
 variables:
   files:
     - ./fixtures/test-data.yaml
-  env_prefix: EXTERN_BDD_
+  env_prefix: EXO_BDD_
 
 # Tags
 tags:
@@ -370,8 +370,8 @@ tags:
 ### 5.2 Environment-Specific Overrides
 
 ```yaml
-# extern-bdd.ci.yaml
-extends: extern-bdd.yaml
+# exo-bdd.ci.yaml
+extends: exo-bdd.yaml
 
 systems:
   web:
@@ -702,7 +702,7 @@ Hooks can be defined as:
 3. **Adapter hooks** (per-adapter setup/teardown)
 
 ```yaml
-# extern-bdd.yaml
+# exo-bdd.yaml
 hooks:
   before_all:
     - ./scripts/start-services.sh
@@ -857,45 +857,45 @@ Adapters can attach artifacts to reports:
 
 ```bash
 # Run all tests
-extern-bdd run
+exo-bdd run
 
 # Run specific feature files
-extern-bdd run features/auth.feature features/users.feature
+exo-bdd run features/auth.feature features/users.feature
 
 # Run by tags
-extern-bdd run --tags "@smoke and not @slow"
-extern-bdd run --tags "@api or @cli"
+exo-bdd run --tags "@smoke and not @slow"
+exo-bdd run --tags "@api or @cli"
 
 # Run specific scenario by name
-extern-bdd run --name "Successful login"
+exo-bdd run --name "Successful login"
 
 # Parallel execution
-extern-bdd run --parallel 4
+exo-bdd run --parallel 4
 
 # Specify config file
-extern-bdd run --config extern-bdd.ci.yaml
+exo-bdd run --config exo-bdd.ci.yaml
 
 # Dry run (validate without executing)
-extern-bdd run --dry-run
+exo-bdd run --dry-run
 
 # Generate step definition stubs
-extern-bdd steps --undefined
+exo-bdd steps --undefined
 
 # List available steps
-extern-bdd steps --list
-extern-bdd steps --list --adapter http
+exo-bdd steps --list
+exo-bdd steps --list --adapter http
 
 # Validate configuration
-extern-bdd validate
+exo-bdd validate
 
 # Initialize new project
-extern-bdd init
+exo-bdd init
 
 # Health check all systems
-extern-bdd health
+exo-bdd health
 
 # Generate report from previous run
-extern-bdd report --input results.json --format html --output report.html
+exo-bdd report --input results.json --format html --output report.html
 ```
 
 ### 11.2 Exit Codes
@@ -912,11 +912,11 @@ extern-bdd report --input results.json --format html --output report.html
 
 | Variable | Description |
 |----------|-------------|
-| `EXTERN_BDD_CONFIG` | Path to config file |
-| `EXTERN_BDD_TAGS` | Default tag filter |
-| `EXTERN_BDD_PARALLEL` | Parallel execution count |
-| `EXTERN_BDD_NO_COLOR` | Disable colored output |
-| `EXTERN_BDD_DEBUG` | Enable debug logging |
+| `EXO_BDD_CONFIG` | Path to config file |
+| `EXO_BDD_TAGS` | Default tag filter |
+| `EXO_BDD_PARALLEL` | Parallel execution count |
+| `EXO_BDD_NO_COLOR` | Disable colored output |
+| `EXO_BDD_DEBUG` | Enable debug logging |
 
 ---
 
@@ -928,7 +928,7 @@ Create a custom adapter package:
 
 ```
 my-adapter/
-├── package.json        # name: "extern-bdd-adapter-myservice"
+├── package.json        # name: "exo-bdd-adapter-myservice"
 ├── index.js            # exports adapter interface
 ├── steps/              # step definition files
 │   └── my-steps.js
@@ -1027,8 +1027,8 @@ transforms:
 
 ```
 my-project/
-├── extern-bdd.yaml
-├── extern-bdd.ci.yaml
+├── exo-bdd.yaml
+├── exo-bdd.ci.yaml
 ├── features/
 │   ├── api/
 │   │   ├── auth.feature
@@ -1113,7 +1113,7 @@ Feature: Feature name
 
 ## Appendix C: Comparison with Existing Tools
 
-| Feature | Extern-BDD | Cucumber | Karate | Postman |
+| Feature | Exo BDD | Cucumber | Karate | Postman |
 |---------|------------|----------|--------|---------|
 | Language agnostic | Yes | Partial | No (JVM) | No |
 | External testing only | Yes | No | Yes | Yes |
