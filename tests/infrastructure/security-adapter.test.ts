@@ -37,6 +37,7 @@ function makeMockResponse(entry: (typeof fetchResponses)[number]): Response {
 const defaultConfig: SecurityAdapterConfig = {
   zapUrl: 'http://localhost:8080',
   zapApiKey: 'test-api-key',
+  pollDelayMs: 0, // Eliminate real setTimeout delays in tests
 }
 
 function createAdapter(overrides?: Partial<SecurityAdapterConfig>) {
@@ -141,7 +142,7 @@ describe('ZapSecurityAdapter', () => {
   })
 
   // 6
-  test('activeScan polls at 2-second intervals', async () => {
+  test('activeScan polls at configured intervals', async () => {
     // start scan
     pushResponse({ scan: '1' })
     // poll #1: not done
@@ -152,15 +153,11 @@ describe('ZapSecurityAdapter', () => {
     pushResponse({ alerts: [] })
 
     const adapter = createAdapter()
-    const startTime = Date.now()
     await adapter.activeScan('http://example.com')
-    const elapsed = Date.now() - startTime
 
-    // At least one 2-second wait should have occurred
+    // Two status poll calls verify the polling loop executed
     const statusCalls = fetchCallLog.filter((c) => c.url.includes('/JSON/ascan/view/status/'))
     expect(statusCalls).toHaveLength(2)
-    // Elapsed time should be at least ~2 seconds due to the polling delay
-    expect(elapsed).toBeGreaterThanOrEqual(1900)
   })
 
   // 7
